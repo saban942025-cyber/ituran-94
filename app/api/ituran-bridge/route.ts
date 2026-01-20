@@ -1,27 +1,29 @@
 import { NextResponse } from 'next/server';
 import { db } from '../../../lib/firebase';
-import { ref, push, set, serverTimestamp } from 'firebase/database';
-import { db } from '../../../lib/firebase';  try {
+import { ref, set, push, serverTimestamp } from 'firebase/database';
+
+export async function POST(request: Request) {
+  try {
     const body = await request.text();
-    // פענוח ה-SABAN_ALERT שהגדרנו במאקרו
     const [header, alertName, driver, plate, location, time, speed] = body.split('|');
 
     if (header !== 'SABAN_ALERT') {
       return NextResponse.json({ error: 'Invalid Format' }, { status: 400 });
     }
 
-    // 1. עדכון סטטוס נהג בזמן אמת
+    // 1. עדכון סטטוס נהג
     await set(ref(db, `team/${driver}`), {
-      last_seen: location,
-      speed: speed,
-      status: alertName.includes('PTO') ? 'עבודת מנוף' : 'בתנועה',
-      updatedAt: serverTimestamp()
+      status: alertName,
+      location,
+      time,
+      lastUpdate: serverTimestamp()
     });
 
-    // 2. רישום ביומן הודעות פנימי
+    // 2. רישום הודעה בהיסטוריה
     await push(ref(db, 'internal_messages'), {
-      message: `התראה: ${alertName} לנהג ${driver} ב-${location}`,
-      type: alertName.includes('PTO') ? 'work' : 'info',
+      driver,
+      alertName,
+      text: `התראה: ${alertName} מרכב ${plate}`,
       timestamp: serverTimestamp()
     });
 
