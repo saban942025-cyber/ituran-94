@@ -1,0 +1,16 @@
+/saban-fleet-ai
+├── app/                    # המנוע של Next.js
+│   ├── api/                # גשר המיילים (Serverless)
+│   │   └── ituran-bridge/route.ts
+│   ├── layout.tsx          # עיצוב גלובלי
+│   └── page.tsx            # הדאשבורד היוקרתי של ראמי
+├── components/             # כפתורי הנהגים והגרפים
+│   ├── DriverGate.tsx
+│   ├── SettingsPanel.tsx
+│   └── LiveAlerts.tsx
+├── lib/                    # המוח (Logic)
+│   ├── firebase.ts         # התחברות ל-DB שלך
+│   └── parser.ts           # מפענח ה-CSV והג'יבריש
+├── public/                 # אייקונים ותמונות הנהגים
+│   └── manifest.json       # תעודת זהות למובייל
+└── tailwind.config.js      # עיצוב בהיר ויוקרתי
