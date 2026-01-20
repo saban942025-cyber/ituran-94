@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '../../../lib/Firebase';
 import { ref, push, set, serverTimestamp } from 'firebase/database';
-
-export async function POST(request: Request) {
-  try {
+import { db } from '../../../lib/firebase';  try {
     const body = await request.text();
     // פענוח ה-SABAN_ALERT שהגדרנו במאקרו
     const [header, alertName, driver, plate, location, time, speed] = body.split('|');
