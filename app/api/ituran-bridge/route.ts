@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db } from '../../../lib/Firebase';
+import { db } from '../../../lib/firebase';
 import { ref, push, set, serverTimestamp } from 'firebase/database';
 import { db } from '../../../lib/firebase';  try {
     const body = await request.text();
