@@ -1,10 +1,8 @@
-import './globals.css'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Saban Elite Fleet AI',
-  description: 'ניהול צי רכב ח.סבן',
-  manifest: '/manifest.json'
+  title: 'Saban Elite Fleet',
+  description: 'מערכת ניהול צי ח.סבן',
 }
 
 export default function RootLayout({
@@ -14,9 +12,6 @@ export default function RootLayout({
 }) {
   return (
     <html lang="he" dir="rtl">
-      <head>
-        <meta name="theme-color" content="#0046ad" />
-      </head>
       <body>{children}</body>
     </html>
   )
