@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { db } from '../lib/firebase';
+import { db } from '../lib/firebase'; // יוצאים מ-app ונכנסים ל-lib
 import { ref, onValue } from 'firebase/database';
 
 export default function SabanDashboard() {
