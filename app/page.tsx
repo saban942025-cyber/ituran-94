@@ -32,7 +32,7 @@ export default function SabanDashboard() {
 
       {/* חלק המפה */}
       <div className="mb-8 bg-white p-2 rounded-2xl shadow-lg border border-gray-200">
-        <LoadScript googleMapsApiKey="0592368999282ef7ea7c5ef8bddc23fda18b9bf76856359df062eec32ceccf27" language="he" region="IL">
+        <LoadScript googleMapsApiKey="AIzaSyC_HYvh7IupneJt_nKuSWd3qKInl36KZ-M" language="he" region="IL">
           <GoogleMap mapContainerStyle={mapContainerStyle} center={center} zoom={9}>
             {drivers && Object.entries(drivers).map(([name, data]: [string, any]) => (
               data.lat && data.lng && (
