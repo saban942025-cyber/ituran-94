@@ -24,7 +24,7 @@ export default function SabanDashboard() {
       
       {/* המפה */}
       <div className="mb-8 shadow-xl">
-        <LoadScript googleMapsApiKey="YOUR_GOOGLE_MAPS_API_KEY" language="he" region="IL">
+        <LoadScript googleMapsApiKey="0592368999282ef7ea7c5ef8bddc23fda18b9bf76856359df062eec32ceccf27" language="he" region="IL">
           <GoogleMap mapContainerStyle={mapContainerStyle} center={center} zoom={9}>
             {Object.entries(drivers).map(([name, data]: [string, any]) => (
               data.lat && data.lng && (
