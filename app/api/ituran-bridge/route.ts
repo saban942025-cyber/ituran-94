@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db } from '../../../lib/firebase';
+import { db } from '../../../lib/firebase'; // יוצאים 3 רמות החוצה
 import { ref, set, push, serverTimestamp } from 'firebase/database';
 
 export async function POST(request: Request) {
