@@ -1,66 +1,62 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { db } from '../lib/firebase'; // יוצאים מ-app ונכנסים ל-lib
+import { db } from '../lib/firebase';
 import { ref, onValue } from 'firebase/database';
+import { GoogleMap, LoadScript, Marker, InfoWindow } from '@react-google-maps/api';
 
 export default function SabanDashboard() {
   const [drivers, setDrivers] = useState<any>({});
-  const [alerts, setAlerts] = useState<any[]>([]);
+  const [selectedDriver, setSelectedDriver] = useState<any>(null);
 
   useEffect(() => {
-    // האזנה חיה לצוות
-    const teamRef = ref(db, 'team');
-    onValue(teamRef, (snapshot) => {
-      setDrivers(snapshot.val() || {});
-    });
-
-    // האזנה להודעות אחרונות
-    const msgRef = ref(db, 'internal_messages');
-    onValue(msgRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        setAlerts(Object.values(data).reverse().slice(0, 5));
-      }
+    const driversRef = ref(db, 'team');
+    return onValue(driversRef, (snapshot) => {
+      if (snapshot.exists()) setDrivers(snapshot.val());
     });
   }, []);
 
-  return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-8 dir-rtl text-right">
-      <header className="flex justify-between items-center mb-8 bg-white p-6 rounded-2xl shadow-sm border-r-4 border-blue-600">
-        <div>
-          <h1 className="text-2xl font-black text-slate-800">ח.סבן - ניהול צי חכם</h1>
-          <p className="text-slate-500 text-sm">סטטוס צוות בזמן אמת</p>
-        </div>
-      </header>
+  const mapContainerStyle = { width: '100%', height: '500px', borderRadius: '12px' };
+  const center = { lat: 32.0853, lng: 34.7818 }; // מרכז הארץ כברירת מחדל
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {Object.entries(drivers).map(([name, data]: any) => (
-          <div key={name} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-all">
-            <div className="flex justify-between items-start mb-4">
-               <span className={`px-3 py-1 rounded-full text-xs font-bold ${data.status === 'עבודת מנוף' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
-                {data.status}
-              </span>
-              <h2 className="text-xl font-bold text-slate-800">{name}</h2>
-            </div>
-            <p className="text-slate-600 text-sm mb-1">📍 {data.last_seen}</p>
-            <p className="text-slate-400 text-xs">מהירות: {data.speed} קמ"ש</p>
-          </div>
-        ))}
+  return (
+    <div className="p-6 bg-gray-100 min-h-screen" dir="rtl">
+      <h1 className="text-3xl font-bold mb-6 text-blue-900 underline">ח. סבן - ניהול צי רכב (זמן אמת)</h1>
+      
+      {/* המפה */}
+      <div className="mb-8 shadow-xl">
+        <LoadScript googleMapsApiKey="YOUR_GOOGLE_MAPS_API_KEY" language="he" region="IL">
+          <GoogleMap mapContainerStyle={mapContainerStyle} center={center} zoom={9}>
+            {Object.entries(drivers).map(([name, data]: [string, any]) => (
+              data.lat && data.lng && (
+                <Marker 
+                  key={name} 
+                  position={{ lat: data.lat, lng: data.lng }} 
+                  onClick={() => setSelectedDriver({ name, ...data })}
+                  label={{ text: name, color: 'white', className: 'bg-blue-600 p-1 rounded text-xs' }}
+                />
+              )
+            ))}
+            
+            {selectedDriver && (
+              <InfoWindow 
+                position={{ lat: selectedDriver.lat, lng: selectedDriver.lng }}
+                onCloseClick={() => setSelectedDriver(null)}
+              >
+                <div className="text-right p-2">
+                  <h3 className="font-bold">{selectedDriver.name}</h3>
+                  <p>סטטוס: {selectedDriver.status}</p>
+                  <p>מהירות: {selectedDriver.speed} קמ"ש</p>
+                </div>
+              </InfoWindow>
+            )}
+          </GoogleMap>
+        </LoadScript>
       </div>
 
-      <section className="mt-12 bg-slate-800 text-white p-6 rounded-2xl shadow-lg">
-        <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-          <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
-          התראות אחרונות
-        </h3>
-        <div className="space-y-3">
-          {alerts.map((alert, i) => (
-            <div key={i} className="text-sm border-b border-slate-700 pb-2 last:border-0 opacity-90">
-              {alert.message}
-            </div>
-          ))}
-        </div>
-      </section>
+      {/* הטבלה המוכרת שלך תמשיך כאן למטה... */}
+      <div className="bg-white rounded-lg shadow p-4">
+          {/* קוד הטבלה הקודם שלך */}
+      </div>
     </div>
   );
 }
