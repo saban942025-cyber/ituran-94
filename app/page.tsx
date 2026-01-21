@@ -197,7 +197,7 @@ export default function SabanEliteDashboard() {
                       <td className="p-4 font-bold">{ticket.customer}</td>
                       <td className="p-4 text-blue-700 font-mono">{ticket.startTime || '--:--'}</td>
                       <td className="p-4 text-blue-700 font-mono">{ticket.endTime || '--:--'}</td>
-                      <td className="p-4 text-orange-700 font-medium">{ticket.deposits || 'אין'}</td>
+                      <td className="p-4 text-orange-700 font-medium">   {typeof ticket.deposits === 'object' && ticket.deposits !== null     ? `${ticket.deposits.big_bag || 0} שקי פקדון`     : ticket.deposits || 'אין'} </td>
                       <td className="p-4 text-center">
                         <div className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-black ${ticket.status === 'Red' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
                           {ticket.status === 'Red' ? <AlertCircle size={14}/> : <CheckCircle size={14}/>}
