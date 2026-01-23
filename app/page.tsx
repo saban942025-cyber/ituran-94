@@ -1,130 +1,115 @@
 'use client';
-import { useEffect, useState, useMemo } from 'react';
+import { useState } from 'react';
 import { db } from '../lib/firebase';
-import { ref, onValue, push, set, remove } from 'firebase/database';
+import { ref, push, set } from 'firebase/database';
 import { 
-  Package, Database, Search, AlertCircle, X, ExternalLink, CheckCircle2, Trash2, Calendar
+  Database, FileJson, AlertCircle, CheckCircle2, Send, ArrowRight, X, Layout
 } from 'lucide-react';
+import Link from 'next/link';
 
-// ייצוא ברירת מחדל הכרחי לפתרון שגיאת ה-Build
-export default function SabanEliteArchiveV5() {
-  const [deliveryHistory, setDeliveryHistory] = useState<any[]>([]);
-  const [selectedDate, setSelectedDate] = useState('2026-01-19');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [showAdmin, setShowAdmin] = useState(false);
+export default function AIAnalyzerPage() {
   const [jsonInput, setJsonInput] = useState('');
+  const [stagedData, setStagedData] = useState<any[]>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  useEffect(() => {
-    const historyRef = ref(db, 'delivery_history');
-    onValue(historyRef, (snapshot) => {
-      if (snapshot.exists()) {
-        const data = snapshot.val();
-        const list = Object.keys(data).map(k => ({ id: k, ...data[k] }));
-        setDeliveryHistory(list);
-      } else {
-        setDeliveryHistory([]);
+  // פונקציה לעיבוד ראשוני של ה-JSON
+  const handleStaging = () => {
+    try {
+      const parsed = JSON.parse(jsonInput);
+      setStagedData(Array.isArray(parsed) ? parsed : [parsed]);
+    } catch (e) {
+      alert('שגיאה בפורמט ה-JSON. וודא שהעתקת את כל הטקסט.');
+    }
+  };
+
+  // שמירה סופית ל-Firebase (סגירת מעגל)
+  const commitToFirebase = async () => {
+    setIsProcessing(true);
+    try {
+      const historyRef = ref(db, 'delivery_history');
+      for (const item of stagedData) {
+        await push(historyRef, item);
       }
-    });
-  }, []);
-
-  const filteredHistory = useMemo(() => 
-    deliveryHistory
-      .filter(t => t.date === selectedDate)
-      .filter(t => {
-        const id = String(t.ticketId || "");
-        const cust = String(t.customer || "").toLowerCase();
-        return id.includes(searchTerm) || cust.includes(searchTerm.toLowerCase());
-      }), 
-  [deliveryHistory, selectedDate, searchTerm]);
+      alert('הנתונים הוזרקו בהצלחה לארכיון!');
+      setStagedData([]);
+      setJsonInput('');
+    } catch (e) {
+      alert('שגיאה בשמירה למאגר');
+    }
+    setIsProcessing(false);
+  };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] font-sans text-right" dir="rtl">
-      {/* Header מעוצב */}
-      <header className="bg-white border-b-4 border-blue-900 shadow-xl sticky top-0 z-[1000] p-6 flex justify-between items-center rounded-b-[2.5rem]">
-        <div className="flex items-center gap-6">
-          <div className="border-l-4 pl-4 border-blue-900">
-            <h1 className="text-2xl font-black text-blue-900 italic uppercase">Saban AI Archive</h1>
-            <span className="text-[10px] font-bold text-slate-500 tracking-widest block">ניהול צי חכם - ח.סבן</span>
-          </div>
-          <div className="flex bg-slate-100 rounded-2xl p-1 gap-2 border border-slate-200">
-            <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="bg-transparent font-black text-sm p-1 outline-none text-blue-900" />
-            <div className="relative">
-              <Search size={14} className="absolute right-3 top-2.5 text-slate-400" />
-              <input type="text" placeholder="חיפוש בארכיון..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pr-9 py-1.5 rounded-xl border-none bg-white text-xs font-bold w-44 shadow-sm focus:ring-2 focus:ring-blue-200" />
-            </div>
-          </div>
+    <div className="min-h-screen bg-[#F0F4F8] p-8 font-sans" dir="rtl">
+      <header className="max-w-6xl mx-auto flex justify-between items-center mb-12">
+        <div>
+          <h1 className="text-3xl font-black text-blue-900 flex items-center gap-3 italic">
+            <FileJson size={32} /> מעבד נתונים Saban AI
+          </h1>
+          <p className="text-slate-500 font-bold">שלב הביניים לפני הזרקה לארכיון 365</p>
         </div>
-        <button onClick={() => setShowAdmin(true)} className="flex items-center gap-2 px-6 py-2 bg-blue-900 text-white rounded-full font-black text-xs shadow-lg hover:bg-black transition-all">
-          <Database size={16}/> הזרקת נתוני קופיילוט
-        </button>
+        <Link href="/" className="flex items-center gap-2 font-black text-blue-600 hover:underline">
+          חזור ללוח הבקרה <ArrowRight size={20} />
+        </Link>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredHistory.map((ticket) => (
-            <div key={ticket.id} className="bg-white rounded-[2.5rem] p-6 shadow-xl border-t-[12px] transition-transform hover:scale-[1.02]" style={{ borderTopColor: ticket.statusColor || '#0046ad' }}>
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <span className="text-[10px] font-black text-slate-400 block uppercase">Ticket ID</span>
-                  <h4 className="font-black text-blue-950 text-xl">#{ticket.ticketId}</h4>
-                </div>
-                <a href={ticket.spLink} target="_blank" className="p-3 bg-blue-50 text-blue-600 rounded-2xl hover:bg-blue-600 hover:text-white transition-colors">
-                  <ExternalLink size={20} />
-                </a>
-              </div>
+      <main className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* אזור הזנה */}
+        <div className="bg-white rounded-[3rem] p-8 shadow-2xl border-b-8 border-blue-900">
+          <h2 className="text-xl font-black mb-4 flex items-center gap-2">
+            <Database className="text-blue-500" /> הדבק JSON מקופיילוט
+          </h2>
+          <textarea 
+            value={jsonInput}
+            onChange={(e) => setJsonInput(e.target.value)}
+            className="w-full h-96 p-6 font-mono text-xs bg-slate-900 text-emerald-400 rounded-[2rem] outline-none border-4 border-slate-100 focus:border-blue-400 transition-all"
+            placeholder='[ { "ticketId": "6710..." } ]'
+          />
+          <button 
+            onClick={handleStaging}
+            className="w-full mt-6 py-5 bg-blue-900 text-white rounded-[2rem] font-black text-lg hover:bg-black transition-all shadow-lg"
+          >
+            נתח נתונים לתצוגה מקדימה
+          </button>
+        </div>
 
-              <h2 className="font-black text-slate-800 text-lg mb-4">{ticket.customer}</h2>
-
-              <div className="bg-slate-50 rounded-2xl p-4 mb-4 border border-slate-100">
-                <p className="text-[11px] font-black text-blue-700 mb-1 flex items-center gap-1 uppercase">
-                  <AlertCircle size={14}/> ניתוח AI דינמי:
-                </p>
-                <p className="text-xs font-bold leading-relaxed text-slate-600 italic">"{ticket.aiAnalysis}"</p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 mb-4 text-center">
-                <div className="bg-slate-50 p-2 rounded-xl border">
-                  <span className="text-[9px] font-black text-slate-400 block uppercase">Manual</span>
-                  <span className="text-sm font-black text-slate-700">{ticket.manualTime}</span>
+        {/* אזור תצוגה מקדימה */}
+        <div className="bg-white rounded-[3rem] p-8 shadow-2xl border-b-8 border-emerald-500">
+          <h2 className="text-xl font-black mb-4 flex items-center gap-2 text-emerald-600">
+            <Layout /> תצוגה לפני הזרקה ({stagedData.length})
+          </h2>
+          
+          <div className="h-[400px] overflow-y-auto space-y-4 pr-2 custom-scrollbar">
+            {stagedData.length > 0 ? stagedData.map((item, idx) => (
+              <div key={idx} className="p-4 rounded-2xl border-2 border-slate-100 bg-slate-50 relative overflow-hidden">
+                <div className="flex justify-between items-start">
+                  <span className="font-black text-blue-900">#{item.ticketId}</span>
+                  <span className={`px-2 py-1 rounded-lg text-[10px] font-black text-white`} style={{ backgroundColor: item.statusColor }}>
+                    {item.status}
+                  </span>
                 </div>
-                <div className="bg-blue-50 p-2 rounded-xl border border-blue-100">
-                  <span className="text-[9px] font-black text-blue-400 block uppercase">Ituran</span>
-                  <span className="text-sm font-black text-blue-900">{ticket.ituranTime}</span>
+                <p className="text-xs font-bold mt-1">{item.customer}</p>
+                <div className="mt-2 text-[10px] text-slate-500 italic border-t pt-2 leading-relaxed">
+                  {item.aiAnalysis}
                 </div>
               </div>
+            )) : (
+              <div className="h-full flex flex-col items-center justify-center text-slate-300">
+                <AlertCircle size={48} />
+                <p className="font-bold mt-2">ממתין לנתונים...</p>
+              </div>
+            )}
+          </div>
 
-              <div className="flex justify-between items-center">
-                <div className={`flex items-center gap-1 text-[10px] font-black px-3 py-1 rounded-full ${ticket.status === 'תקין' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                  {ticket.status === 'תקין' ? <CheckCircle2 size={12}/> : <AlertCircle size={12}/>}
-                  {ticket.status}
-                </div>
-                <button onClick={() => remove(ref(db, `delivery_history/${ticket.id}`))} className="text-slate-300 hover:text-red-500 transition-colors">
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            </div>
-          ))}
+          <button 
+            disabled={stagedData.length === 0 || isProcessing}
+            onClick={commitToFirebase}
+            className="w-full mt-6 py-5 bg-emerald-600 text-white rounded-[2rem] font-black text-lg hover:bg-emerald-700 disabled:opacity-50 transition-all shadow-lg flex items-center justify-center gap-3"
+          >
+            {isProcessing ? 'מעבד...' : <><Send size={24} /> אשר והזרק לארכיון הראשי</>}
+          </button>
         </div>
       </main>
-
-      {/* Admin Modal */}
-      {showAdmin && (
-        <div className="fixed inset-0 bg-blue-950/40 backdrop-blur-md z-[2000] flex items-center justify-center p-4">
-          <div className="bg-white rounded-[3.5rem] w-full max-w-2xl shadow-2xl p-10 border-t-[12px] border-blue-900 relative">
-            <button onClick={() => setShowAdmin(false)} className="absolute top-6 left-6 text-slate-400 hover:text-red-500 transition-colors"><X size={28}/></button>
-            <h3 className="text-2xl font-black mb-6 flex items-center gap-3 text-blue-900"><Database size={26}/> הזרקת דוח קופיילוט לארכיון</h3>
-            <textarea value={jsonInput} onChange={(e) => setJsonInput(e.target.value)} className="w-full h-80 p-6 font-mono text-[11px] border-2 rounded-[3rem] bg-slate-50 mb-6 outline-none focus:border-blue-500 shadow-inner" placeholder="הדבק JSON כאן..." />
-            <button onClick={async () => {
-              try {
-                const parsed = JSON.parse(jsonInput);
-                const items = Array.isArray(parsed) ? parsed : [parsed];
-                for (const item of items) { await push(ref(db, 'delivery_history'), { ...item, date: item.date || selectedDate }); }
-                setJsonInput(''); setShowAdmin(false); alert('הארכיון עודכן בהצלחה!');
-              } catch { alert('JSON לא תקין'); }
-            }} className="w-full py-5 bg-blue-900 text-white rounded-[2rem] font-black text-lg shadow-xl hover:bg-black transition-all">בצע עדכון ארכיון</button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
