@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ניהול צי חכם - סבן</title>
+    <style>
+        /* עיצוב כללי */
+        body { font-family: system-ui, -apple-system, sans-serif; background-color: #f4f7f6; padding: 20px; }
+        .ticket-card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        
+        /* עיצוב כפתור */
+        .view-btn { background-color: #2563eb; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; transition: background 0.2s; }
+        .view-btn:hover { background-color: #1d4ed8; }
+
+        /* עיצוב המודאל (Popup) */
+        #pdfModal {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+            z-index: 1000; justify-content: center; align-items: center; padding: 20px;
+        }
+        .modal-content {
+            background: white; width: 90%; max-width: 1000px; height: 90vh;
+            border-radius: 12px; overflow: hidden; position: relative; display: flex; flex-direction: column;
+        }
+        .modal-header { padding: 12px 20px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
+        .close-btn { font-size: 24px; cursor: pointer; border: none; background: none; color: #64748b; }
+
+        /* התאמה לנייד - הסתרת המודאל אם זה מסך קטן מאוד (אופציונלי) */
+        @media (max-width: 768px) {
+            .modal-content { width: 100%; height: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+    <h2>ניהול צי חכם - ארכיון סבן</h2>
+
+    <div class="ticket-card">
+        <div>
+            <strong>Ticket #6710293</strong><br>
+            <span>אורניל-אשר לוי</span>
+        </div>
+        <button class="view-btn" onclick="smartView('https://YOUR_MICROSOFT_365_PUBLIC_LINK')">צפה בתעודה</button>
+    </div>
+
+    <div id="pdfModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span id="modalTitle" style="font-weight: bold;">צפייה בתעודה</span>
+                <button class="close-btn" onclick="closeModal()">✕</button>
+            </div>
+            <iframe id="pdfFrame" src="" style="width: 100%; height: 100%; border: none;"></iframe>
+        </div>
+    </div>
+
+    <script>
+        function smartView(url) {
+            // זיהוי אם המשתמש בנייד
+            const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+            if (isMobile) {
+                // בנייד: פתיחה בטאב חדש לחוויית משתמש טובה יותר
+                window.open(url, '_blank');
+            } else {
+                // במחשב: הצגה בתוך Popup
+                const modal = document.getElementById('pdfModal');
+                const frame = document.getElementById('pdfFrame');
+                
+                // התאמת הלינק לתצוגת Embed (אם מדובר בלינק של SharePoint/OneDrive)
+                // במידה והדבקת לינק שיתוף רגיל, ננסה להמיר אותו לתצוגה ישירה
+                let finalUrl = url;
+                if(url.includes('sharepoint.com') && !url.includes('action=embedview')) {
+                    finalUrl = url.replace('guestaccess.aspx', 'embed.aspx'); // ניסיון המרה בסיסי
+                }
+
+                frame.src = finalUrl;
+                modal.style.display = 'flex';
+                document.body.style.overflow = 'hidden'; // מניעת גלילה של הרקע
+            }
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('pdfModal');
+            const frame = document.getElementById('pdfFrame');
+            modal.style.display = 'none';
+            frame.src = ''; // ניקוי ה-Iframe
+            document.body.style.overflow = 'auto'; // החזרת הגלילה
+        }
+
+        // סגירה בלחיצה מחוץ למודאל
+        window.onclick = function(event) {
+            const modal = document.getElementById('pdfModal');
+            if (event.target == modal) {
+                closeModal();
+            }
+        }
+    </script>
+</body>
+</html>
