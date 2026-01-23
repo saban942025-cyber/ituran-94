@@ -6,13 +6,15 @@
     <title>Saban AI Archive - ניהול צי חכם</title>
     <style>
         :root { --primary: #2563eb; --danger: #ef4444; --bg: #f8fafc; }
-        body { font-family: system-ui, -apple-system, sans-serif; background-color: var(--bg); margin: 0; padding: 20px; color: #1e293b; }
+        body { font-family: system-ui, -apple-system, sans-serif; background-color: var(--bg); margin: 0; padding: 20px; color: #1e293b; text-align: right; }
+        
+        /* כותרת */
         .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; }
         
-        /* עיצוב הכרטיס */
+        /* כרטיס Ticket */
         .ticket-card { 
             background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); 
-            padding: 20px; max-width: 600px; margin: 0 auto; border-right: 6px solid var(--danger);
+            padding: 20px; max-width: 500px; margin: 0 auto; border-right: 6px solid var(--danger);
         }
         .ticket-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; }
         .ticket-id { font-weight: bold; color: #64748b; font-size: 0.9em; }
@@ -24,17 +26,34 @@
         }
         .status-badge { background: var(--danger); color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.8em; font-weight: bold; }
 
+        /* כפתור */
         .view-btn { 
             width: 100%; background-color: var(--primary); color: white; border: none; 
             padding: 12px; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 1em;
-            transition: transform 0.1s;
+            display: flex; justify-content: center; align-items: center; gap: 8px;
         }
-        .view-btn:active { transform: scale(0.98); }
+        .view-btn:hover { background-color: #1d4ed8; }
 
-        /* Modal Styles */
-        #pdfModal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 2000; justify-content: center; align-items: center; }
-        .modal-content { background: white; width: 95%; height: 90vh; border-radius: 15px; position: relative; overflow: hidden; display: flex; flex-direction: column; }
-        .close-btn { position: absolute; top: 10px; left: 10px; background: #eee; border: none; border-radius: 50%; width: 35px; height: 35px; cursor: pointer; font-weight: bold; z-index: 2001; }
+        /* מודאל (Popup) */
+        #pdfModal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 2000; justify-content: center; align-items: center; padding: 10px; }
+        .modal-content { 
+            background: white; width: 95%; max-width: 1000px; height: 90vh; 
+            border-radius: 15px; position: relative; overflow: hidden; display: flex; flex-direction: column; 
+        }
+        .close-btn { 
+            position: absolute; top: 15px; left: 15px; background: white; border: 1px solid #ccc; 
+            border-radius: 50%; width: 40px; height: 40px; cursor: pointer; font-size: 20px; z-index: 2001; 
+            display: flex; justify-content: center; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        /* Iframe */
+        #pdfFrame { width: 100%; height: 100%; border: none; }
+
+        /* התאמה לנייד */
+        @media (max-width: 600px) {
+            .ticket-card { width: 90%; }
+            .modal-content { height: 95vh; width: 100%; }
+        }
     </style>
 </head>
 <body>
@@ -58,46 +77,60 @@
             חסרה חתימה; שעות בכתב יד דו-משמעיות אך חלון PTO מאמת פעילות. פער סיום 13 דקות.
         </div>
 
-        <div style="display: flex; gap: 10px; margin-bottom: 15px; font-size: 0.85em; color: #64748b;">
-            <span>📅 ידני: 11:22-11:45</span>
-            <span>📍 איתוראן: 11:21-11:58</span>
-        </div>
-
-        <button class="view-btn" onclick="smartView('https://YOUR_LINK_HERE')">
-            📄 צפה בתעודה מקורית
+        <button class="view-btn" onclick="smartView('הדבק_כאן_את_הלינק_של_גוגל_דרייב')">
+            <span>📄</span> צפה בתעודה מקורית
         </button>
     </div>
 
     <div id="pdfModal">
         <div class="modal-content">
             <button class="close-btn" onclick="closeModal()">✕</button>
-            <iframe id="pdfFrame" src="" style="width: 100%; height: 100%; border: none;"></iframe>
+            <iframe id="pdfFrame" src=""></iframe>
         </div>
     </div>
 
     <script>
         function smartView(url) {
+            if (!url || url.includes('הדבק_כאן')) {
+                alert('נא להזין לינק תקין מהדרייב');
+                return;
+            }
+
             const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-            
-            // במידה והלינק הוא מ-SharePoint, ננסה להמיר אותו ל-Embed
             let finalUrl = url;
-            if (url.includes('sharepoint.com')) {
-                finalUrl = url.replace('guestaccess.aspx', 'embed.aspx').replace('action=view', 'action=embedview');
+
+            // המרה אוטומטית של לינק Google Drive לתצוגת Preview (הצורה של הפריים)
+            if (url.includes('drive.google.com')) {
+                // מטפל בלינק רגיל /view וגם בלינקים מסוג open?id=
+                finalUrl = url.replace(/\/view.*$/, '/preview').replace(/\/edit.*$/, '/preview');
+                if (url.includes('open?id=')) {
+                    finalUrl = url.replace('open?id=', 'file/d/') + '/preview';
+                }
             }
 
             if (isMobile) {
+                // בנייד פותחים בטאב חדש - הכי נוח לקריאת PDF
                 window.open(finalUrl, '_blank');
             } else {
+                // במחשב פותחים בתוך ה-Popup שבנינו
                 document.getElementById('pdfFrame').src = finalUrl;
                 document.getElementById('pdfModal').style.display = 'flex';
-                document.body.style.overflow = 'hidden';
+                document.body.style.overflow = 'hidden'; // מניעת גלילה של הדף מאחור
             }
         }
 
         function closeModal() {
             document.getElementById('pdfModal').style.display = 'none';
-            document.getElementById('pdfFrame').src = '';
+            document.getElementById('pdfFrame').src = ''; // ניקוי כדי שלא ימשיך לטעון ברקע
             document.body.style.overflow = 'auto';
+        }
+
+        // סגירה בלחיצה מחוץ לחלון
+        window.onclick = function(event) {
+            const modal = document.getElementById('pdfModal');
+            if (event.target == modal) {
+                closeModal();
+            }
         }
     </script>
 </body>
