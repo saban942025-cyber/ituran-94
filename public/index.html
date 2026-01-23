@@ -3,134 +3,160 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Saban AI Archive - ניהול צי חכם</title>
+    <title>Saban AI Dashboard</title>
     <style>
-        :root { --primary: #2563eb; --danger: #ef4444; --bg: #f8fafc; }
-        body { font-family: system-ui, -apple-system, sans-serif; background-color: var(--bg); margin: 0; padding: 20px; color: #1e293b; text-align: right; }
+        :root { --primary: #2563eb; --accent: #3b82f6; --danger: #ef4444; --bg: #f1f5f9; --text: #1e293b; }
+        body { font-family: system-ui, sans-serif; background-color: var(--bg); margin: 0; color: var(--text); }
         
-        /* כותרת */
-        .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; }
+        /* Navbar & Hamburger */
+        .navbar { background: #1e293b; color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 1000; }
+        .hamburger { cursor: pointer; font-size: 24px; }
+        .nav-menu { position: fixed; right: -250px; top: 0; width: 250px; height: 100%; background: #1e293b; transition: 0.3s; padding-top: 60px; z-index: 999; }
+        .nav-menu.active { right: 0; }
+        .nav-menu a { display: block; padding: 15px 25px; color: white; text-decoration: none; border-bottom: 1px solid #334155; }
+
+        /* Main Dashboard */
+        .container { padding: 20px; max-width: 800px; margin: auto; }
+        .header-title { font-size: 1.5rem; font-weight: 800; margin-bottom: 5px; }
         
-        /* כרטיס Ticket */
-        .ticket-card { 
-            background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); 
-            padding: 20px; max-width: 500px; margin: 0 auto; border-right: 6px solid var(--danger);
-        }
-        .ticket-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; }
-        .ticket-id { font-weight: bold; color: #64748b; font-size: 0.9em; }
-        .client-name { font-size: 1.25rem; font-weight: 800; color: #0f172a; display: block; }
+        /* Ticket Card */
+        .ticket-card { background: white; border-radius: 16px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); padding: 20px; border-top: 8px solid var(--danger); margin-bottom: 20px; }
+        .client-info { border-bottom: 1px solid #e2e8f0; padding-bottom: 15px; margin-bottom: 15px; }
+        .client-name { font-size: 1.4rem; font-weight: 900; color: #0f172a; display: block; }
         
-        .ai-analysis { 
-            background: #fef2f2; border: 1px solid #fee2e2; padding: 12px; border-radius: 8px; 
-            margin: 15px 0; font-size: 0.95em; line-height: 1.5;
-        }
-        .status-badge { background: var(--danger); color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.8em; font-weight: bold; }
+        /* Products Table */
+        .products-table { width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 0.9rem; }
+        .products-table th { text-align: right; background: #f8fafc; padding: 10px; border-bottom: 2px solid #e2e8f0; }
+        .products-table td { padding: 10px; border-bottom: 1px solid #f1f5f9; }
+        .qty-badge { background: #e0e7ff; color: #4338ca; padding: 2px 8px; border-radius: 4px; font-weight: bold; }
 
-        /* כפתור */
-        .view-btn { 
-            width: 100%; background-color: var(--primary); color: white; border: none; 
-            padding: 12px; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 1em;
-            display: flex; justify-content: center; align-items: center; gap: 8px;
-        }
-        .view-btn:hover { background-color: #1d4ed8; }
+        /* Actions */
+        .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
+        .btn { border: none; padding: 12px; border-radius: 8px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 0.9rem; }
+        .btn-view { background: var(--primary); color: white; }
+        .btn-link { background: #f8fafc; color: var(--text); border: 1px solid #cbd5e1; }
 
-        /* מודאל (Popup) */
-        #pdfModal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 2000; justify-content: center; align-items: center; padding: 10px; }
-        .modal-content { 
-            background: white; width: 95%; max-width: 1000px; height: 90vh; 
-            border-radius: 15px; position: relative; overflow: hidden; display: flex; flex-direction: column; 
-        }
-        .close-btn { 
-            position: absolute; top: 15px; left: 15px; background: white; border: 1px solid #ccc; 
-            border-radius: 50%; width: 40px; height: 40px; cursor: pointer; font-size: 20px; z-index: 2001; 
-            display: flex; justify-content: center; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-        }
+        /* Link Input Area */
+        .link-input-group { display: none; margin-top: 15px; animation: fadeIn 0.3s; }
+        .link-input-group input { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; margin-bottom: 5px; box-sizing: border-box; }
 
-        /* Iframe */
-        #pdfFrame { width: 100%; height: 100%; border: none; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-        /* התאמה לנייד */
-        @media (max-width: 600px) {
-            .ticket-card { width: 90%; }
-            .modal-content { height: 95vh; width: 100%; }
-        }
+        /* Modal Popup */
+        #pdfModal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 2000; padding: 10px; }
+        .modal-content { background: white; width: 100%; height: 90vh; border-radius: 12px; position: relative; }
+        .close-modal { position: absolute; top: -15px; left: -15px; background: var(--danger); color: white; border: none; width: 35px; height: 35px; border-radius: 50%; cursor: pointer; }
     </style>
 </head>
 <body>
 
-    <div class="header">
-        <h1>Saban AI Archive</h1>
-        <p>ניהול צי חכם - ח. סבן</p>
+    <nav class="navbar">
+        <div class="hamburger" onclick="toggleMenu()">☰</div>
+        <div style="font-weight: 900; letter-spacing: 1px;">SABAN AI</div>
+        <div style="width: 24px;"></div> </nav>
+
+    <div class="nav-menu" id="navMenu">
+        <a href="#">🏠 דף הבית</a>
+        <a href="#">📊 דוחות יומיים</a>
+        <a href="#">🚚 ניהול צי נהגים</a>
+        <a href="#">⚙️ הגדרות מערכת</a>
     </div>
 
-    <div class="ticket-card">
-        <div class="ticket-header">
-            <div>
-                <span class="ticket-id">Ticket #6710293</span>
+    <div class="container">
+        <div class="header-title">ארכיון תעודות דיגיטלי</div>
+        <p style="color: #64748b; margin-top: 0;">ניהול צי חכם - Ticket #6710293</p>
+
+        <div class="ticket-card">
+            <div class="client-info">
                 <span class="client-name">אורניל-אשר לוי</span>
+                <span style="color: var(--danger); font-weight: bold; font-size: 0.85rem;">⚠️ חריגת זמן: 13 דקות</span>
             </div>
-            <span class="status-badge">חריגה</span>
-        </div>
 
-        <div class="ai-analysis">
-            <strong>ניתוח AI דינמי:</strong><br>
-            חסרה חתימה; שעות בכתב יד דו-משמעיות אך חלון PTO מאמת פעילות. פער סיום 13 דקות.
-        </div>
+            <table class="products-table">
+                <thead>
+                    <tr>
+                        <th>מוצר</th>
+                        <th>מק"ט</th>
+                        <th>כמות</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>שמן מנוע 5W30</td>
+                        <td>SKU-9921</td>
+                        <td><span class="qty-badge">4</span></td>
+                    </tr>
+                    <tr>
+                        <td>פילטר אוויר הידראולי</td>
+                        <td>SKU-1044</td>
+                        <td><span class="qty-badge">1</span></td>
+                    </tr>
+                </tbody>
+            </table>
 
-        <button class="view-btn" onclick="smartView('https://drive.google.com/file/d/1EM6XNuGHXqq-vh-64QrhWApIHt8RwVvq/view?usp=sharing')">
-            <span>📄</span> צפה בתעודה מקורית
-        </button>
+            <div class="actions">
+                <button class="btn btn-view" onclick="openDoc()">📄 צפה בתעודה</button>
+                <button class="btn btn-link" onclick="toggleLinkInput()">🔗 עדכן לינק</button>
+            </div>
+
+            <div class="link-input-group" id="linkGroup">
+                <input type="text" id="docUrl" placeholder="הדבק לינק מדרייב כאן...">
+                <button class="btn btn-view" style="width: 100%; background: #10b981;" onclick="saveLink()">שמור לינק</button>
+            </div>
+        </div>
     </div>
 
     <div id="pdfModal">
         <div class="modal-content">
-            <button class="close-btn" onclick="closeModal()">✕</button>
-            <iframe id="pdfFrame" src=""></iframe>
+            <button class="close-modal" onclick="closeModal()">✕</button>
+            <iframe id="pdfFrame" src="" style="width: 100%; height: 100%; border: none; border-radius: 12px;"></iframe>
         </div>
     </div>
 
     <script>
-        function smartView(url) {
-            if (!url || url.includes('הדבק_כאן')) {
-                alert('נא להזין לינק תקין מהדרייב');
+        let currentLink = "";
+
+        function toggleMenu() {
+            document.getElementById('navMenu').classList.toggle('active');
+        }
+
+        function toggleLinkInput() {
+            const group = document.getElementById('linkGroup');
+            group.style.display = group.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function saveLink() {
+            const input = document.getElementById('docUrl').value;
+            if(input) {
+                currentLink = input;
+                alert('הלינק נשמר בהצלחה בכרטיס!');
+                toggleLinkInput();
+            }
+        }
+
+        function openDoc() {
+            if(!currentLink) {
+                alert('נא לעדכן לינק למסמך תחילה');
                 return;
+            }
+            
+            let finalUrl = currentLink;
+            if (currentLink.includes('drive.google.com')) {
+                finalUrl = currentLink.replace(/\/view.*$/, '/preview').replace(/\/edit.*$/, '/preview');
             }
 
             const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-            let finalUrl = url;
-
-            // המרה אוטומטית של לינק Google Drive לתצוגת Preview (הצורה של הפריים)
-            if (url.includes('drive.google.com')) {
-                // מטפל בלינק רגיל /view וגם בלינקים מסוג open?id=
-                finalUrl = url.replace(/\/view.*$/, '/preview').replace(/\/edit.*$/, '/preview');
-                if (url.includes('open?id=')) {
-                    finalUrl = url.replace('open?id=', 'file/d/') + '/preview';
-                }
-            }
-
-            if (isMobile) {
-                // בנייד פותחים בטאב חדש - הכי נוח לקריאת PDF
+            if(isMobile) {
                 window.open(finalUrl, '_blank');
             } else {
-                // במחשב פותחים בתוך ה-Popup שבנינו
                 document.getElementById('pdfFrame').src = finalUrl;
                 document.getElementById('pdfModal').style.display = 'flex';
-                document.body.style.overflow = 'hidden'; // מניעת גלילה של הדף מאחור
             }
         }
 
         function closeModal() {
             document.getElementById('pdfModal').style.display = 'none';
-            document.getElementById('pdfFrame').src = ''; // ניקוי כדי שלא ימשיך לטעון ברקע
-            document.body.style.overflow = 'auto';
-        }
-
-        // סגירה בלחיצה מחוץ לחלון
-        window.onclick = function(event) {
-            const modal = document.getElementById('pdfModal');
-            if (event.target == modal) {
-                closeModal();
-            }
+            document.getElementById('pdfFrame').src = '';
         }
     </script>
 </body>
