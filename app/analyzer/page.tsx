@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { db } from '../lib/firebase'; // נתיב מתוקן לרמת ה-app
+// תיקון נתיב הייבוא - עולים שתי רמות מתיקיית analyzer לתיקיית השורש ואז ל-lib
+import { db } from '../../lib/firebase'; 
 import { ref, push } from 'firebase/database';
 import { Database, FileJson, Send, ArrowRight, Layout, AlertCircle, X } from 'lucide-react';
 import Link from 'next/link';
@@ -78,7 +79,7 @@ export default function AIAnalyzerPage() {
             <Layout /> תצוגה לפני הזרקה ({stagedData.length})
           </h2>
           
-          <div className="h-[400px] overflow-y-auto space-y-4 pr-2">
+          <div className="h-[400px] overflow-y-auto space-y-4 pr-2 custom-scrollbar">
             {stagedData.length > 0 ? stagedData.map((item, idx) => (
               <div key={idx} className="p-4 rounded-2xl border-2 border-slate-100 bg-slate-50">
                 <div className="flex justify-between items-start">
