@@ -6,63 +6,109 @@
     <title>Saban X-Ray Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { background: #0f172a; color: #f8fafc; font-family: 'Segoe UI', sans-serif; }
-        .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; }
-        .status-success { color: #4ade80; }
-        .status-fail { color: #f87171; }
+        body { background: #0f172a; color: #f8fafc; font-family: 'Segoe UI', system-ui, sans-serif; }
+        .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; transition: transform 0.2s; }
+        .card:hover { transform: translateY(-5px); border-color: #3b82f6; }
+        .status-success { color: #4ade80; border-right: 4px solid #4ade80; }
+        .status-fail { color: #f87171; border-right: 4px solid #f87171; }
+        .loading-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
     </style>
 </head>
-<body class="p-4">
-    <header class="mb-8 text-center">
-        <h1 class="text-3xl font-bold text-blue-400">ח. סבן - בקרה לוגיסטית</h1>
-        <p class="text-slate-400">מערכת רנטגן אוטומטית (SabanOS Studio)</p>
+<body class="p-4 md:p-8">
+    <header class="mb-10 text-center">
+        <h1 class="text-4xl font-extrabold text-white mb-2">ח. סבן - בקרה לוגיסטית</h1>
+        <div class="flex items-center justify-center gap-2">
+            <span class="h-3 w-3 rounded-full bg-green-500 loading-pulse"></span>
+            <p class="text-blue-400 font-mono tracking-widest uppercase text-sm">SabanOS X-Ray Studio Engine</p>
+        </div>
     </header>
 
-    <div id="results-container" class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+    <div id="loader" class="text-center py-20">
+        <p class="text-slate-400 text-lg">סורק נתונים מהמערכת...</p>
+    </div>
+
+    <div id="results-container" class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         </div>
+
+    <div id="error-msg" class="hidden text-center py-20 bg-red-900/20 border border-red-500/50 rounded-xl mt-10">
+        <p class="text-red-400 font-bold text-xl mb-2">⚠️ קובץ הנתונים לא נמצא</p>
+        <p class="text-slate-300">וודא שסקריפט ה-Python רץ וייצר את הקובץ <b>scripts/results.json</b> במאגר ituran-94.</p>
+    </div>
 
     <script>
         async function loadResults() {
-            try {
-                // ב-GitHub Pages הנתיב יהיה לשם הקובץ ב-Artifacts או ב-Repo
-                const response = await fetch('scripts/results.json');
-                const data = await response.json();
-                const container = document.getElementById('results-container');
+            const container = document.getElementById('results-container');
+            const loader = document.getElementById('loader');
+            const errorMsg = document.getElementById('error-msg');
 
-                data.forEach(ticket => {
-                    const card = document.createElement('div');
-                    card.className = 'card p-4 shadow-lg';
-                    
-                    const itemsHtml = ticket.items.map(i => `
-                        <div class="flex justify-between text-sm py-1 border-b border-slate-700">
-                            <span>מק"ט: ${i.sku}</span>
-                            <span class="${i.picked ? 'text-green-400' : 'text-red-400'}">
-                                ${i.picked ? '✓ נלקט' : '✗ לא נלקט'}
+            // רשימת נתיבים אפשריים (עבור סביבה מקומית ועבור GitHub Pages)
+            const paths = ['scripts/results.json', './scripts/results.json', 'results.json'];
+            let data = null;
+
+            for (let path of paths) {
+                try {
+                    const response = await fetch(path);
+                    if (response.ok) {
+                        data = await response.json();
+                        break;
+                    }
+                } catch (e) { console.warn(`Failed to fetch from ${path}`); }
+            }
+
+            if (!data || data.length === 0) {
+                loader.classList.add('hidden');
+                errorMsg.classList.remove('hidden');
+                return;
+            }
+
+            loader.classList.add('hidden');
+            container.innerHTML = '';
+
+            data.forEach(ticket => {
+                const isSuccess = ticket.handwrittenTime !== null;
+                const card = document.createElement('div');
+                card.className = `card p-6 shadow-2xl ${isSuccess ? 'status-success' : 'status-fail'}`;
+                
+                const itemsHtml = ticket.items && ticket.items.length > 0 
+                    ? ticket.items.map(i => `
+                        <div class="flex justify-between items-center text-sm py-2 border-b border-slate-700/50">
+                            <span class="font-mono text-slate-300">מק"ט: ${i.sku}</span>
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${i.picked ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}">
+                                ${i.picked ? 'נלקט' : 'חסר'}
                             </span>
                         </div>
-                    `).join('');
+                    `).join('')
+                    : '<p class="text-xs italic text-slate-500 py-2">לא נמצאו פריטים בטבלה</p>';
 
-                    card.innerHTML = `
-                        <div class="flex justify-between items-start mb-4">
-                            <h2 class="text-xl font-bold text-white">תעודה: ${ticket.ticketId}</h2>
-                            <span class="text-xs text-slate-500">${ticket.timestamp.split('T')[0]}</span>
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-6">
+                        <div>
+                            <h2 class="text-2xl font-black text-white leading-none">${ticket.ticketId}</h2>
+                            <p class="text-[10px] text-slate-500 mt-1 uppercase">${ticket.filename}</p>
                         </div>
-                        <div class="mb-4">
-                            <p class="text-slate-400">שעה בכתב יד:</p>
-                            <p class="text-2xl font-mono ${ticket.handwrittenTime ? 'status-success' : 'status-fail'}">
-                                ${ticket.handwrittenTime || 'לא זוהה'}
-                            </p>
+                        <div class="text-right">
+                            <p class="text-[10px] text-blue-400 font-bold uppercase">שעה זוהתה</p>
+                            <p class="text-xl font-mono font-bold">${ticket.handwrittenTime || '--:--'}</p>
                         </div>
-                        <div class="bg-slate-900/50 p-2 rounded">
-                            <p class="text-xs text-blue-400 mb-2 font-bold">פירוט מוצרים:</p>
-                            ${itemsHtml || '<p class="text-xs italic">לא נמצאו מוצרים</p>'}
+                    </div>
+                    
+                    <div class="space-y-1 mb-6">
+                        <p class="text-[10px] text-slate-400 font-bold uppercase mb-2">סטטוס איסוף (מסופון)</p>
+                        <div class="max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+                            ${itemsHtml}
                         </div>
-                    `;
-                    container.appendChild(card);
-                });
-            } catch (e) {
-                console.error("Error loading JSON:", e);
-            }
+                    </div>
+
+                    <div class="pt-4 border-t border-slate-700 flex justify-between items-center">
+                        <span class="text-[10px] text-slate-500">${new Date(ticket.timestamp).toLocaleString('he-IL')}</span>
+                        <span class="text-[10px] font-bold px-2 py-1 rounded bg-slate-800 text-slate-400 border border-slate-700">
+                            ${ticket.status}
+                        </span>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
         }
         loadResults();
     </script>
