@@ -25,6 +25,7 @@ def run_analysis():
         return
 
     try:
+        # טעינת המנוע פעם אחת
         reader = easyocr.Reader(['he', 'en'], gpu=False)
         print("✅ OCR Engine Ready.")
     except Exception as e:
@@ -43,16 +44,18 @@ def run_analysis():
             img = pages[0]
             
             # שלב 2: חיתוך ROI ממוקד (רק החלק התחתון שבו נמצאת החתימה)
-            # בתעודות סטנדרטיות, החתימה ב-25% התחתונים של הדף
+            # בתעודות אלו, החתימה והשעה נמצאות בערך ב-30% התחתונים
             width, height = img.size
-            roi_box = (0, int(height * 0.70), width, height) 
+            roi_box = (0, int(height * 0.65), width, height) 
             roi_img = img.crop(roi_box)
             
-            # שלב 3: זיהוי שעה בתוך החיתוך
+            # שלב 3: זיהוי שעה בתוך החיתוך בלבד
             roi_np = np.array(roi_img)
+            # שימוש ב-allowlist מצמצם טעויות זיהוי
             ocr_results = reader.readtext(roi_np, detail=0, allowlist="0123456789:")
             combined = " ".join(ocr_results)
             
+            # חיפוש תבנית שעה
             time_match = re.search(r'([01]?\d|2[0-3]):[0-5]\d', combined)
             found_time = time_match.group(0) if time_match else None
             
@@ -67,6 +70,7 @@ def run_analysis():
         except Exception as e:
             print(f"❌ Error processing {filename}: {e}")
 
+    # שמירת התוצאות
     with open(RESULTS_FILE, 'w', encoding='utf-8') as f:
         json.dump(all_results, f, indent=2, ensure_ascii=False)
     print("--- Analysis Completed ---")
