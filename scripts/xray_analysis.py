@@ -3,80 +3,73 @@ import glob
 import json
 import re
 import numpy as np
+from datetime import datetime
 from pdf2image import convert_from_path
 from PIL import Image, ImageOps
 import pytesseract
 import easyocr
 
-# הגדרות נתיבים ל-GitHub Actions
+# הגדרות נתיבים
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DOWNLOADS_DIR = os.path.join(BASE_DIR, 'scripts', 'downloads')
 RESULTS_FILE = os.path.join(BASE_DIR, 'scripts', 'results.json')
 
 def run_analysis():
-    # יצירת תיקיות במידה וחסר
     os.makedirs(DOWNLOADS_DIR, exist_ok=True)
+    print("--- Saban X-Ray: Starting ROI Focused Analysis ---")
     
-    print("--- Saban X-Ray Analysis: Starting Production Run ---")
-    
-    # חיפוש תעודות
     pdf_files = glob.glob(os.path.join(DOWNLOADS_DIR, "*.pdf"))
     if not pdf_files:
-        print("❌ No PDF files found in downloads folder.")
+        print("No files to process.")
         with open(RESULTS_FILE, 'w') as f: json.dump([], f)
         return
 
-    # אתחול EasyOCR עם טיפול בשגיאת שפה
     try:
-        print("Initializing EasyOCR Engine...")
-        # הוספת download_enabled=True מוודא שהענן ינסה להוריד את המודל מחדש אם הוא חסר
-        reader = easyocr.Reader(['he', 'en'], gpu=False, download_enabled=True)
-        print("✅ EasyOCR initialized with Hebrew/English support.")
+        reader = easyocr.Reader(['he', 'en'], gpu=False)
+        print("✅ OCR Engine Ready.")
     except Exception as e:
-        print(f"⚠️ EasyOCR Hebrew Load Failed: {e}")
-        print("Switching to English-only fallback for timestamp recovery...")
-        reader = easyocr.Reader(['en'], gpu=False)
+        print(f"OCR Error: {e}")
+        return
 
     all_results = []
 
     for pdf_path in pdf_files:
         try:
             filename = os.path.basename(pdf_path)
-            print(f"Processing Ticket: {filename}")
+            print(f"Processing: {filename}")
             
-            # המרה לתמונה (DPI 200 מאוזן לביצועי ענן)
-            pages = convert_from_path(pdf_path, dpi=200)
+            # שלב 1: המרה לתמונה איכותית (DPI 300)
+            pages = convert_from_path(pdf_path, dpi=300)
             img = pages[0]
             
-            # זיהוי שעה בכתב יד
-            img_np = np.array(img)
-            # שימוש ב-paragraph=True עוזר לחבר חתיכות טקסט קרובות
-            ocr_results = reader.readtext(img_np, detail=0, paragraph=False)
-            combined_text = " ".join(ocr_results)
+            # שלב 2: חיתוך ROI ממוקד (רק החלק התחתון שבו נמצאת החתימה)
+            # בתעודות סטנדרטיות, החתימה ב-25% התחתונים של הדף
+            width, height = img.size
+            roi_box = (0, int(height * 0.70), width, height) 
+            roi_img = img.crop(roi_box)
             
-            # חיפוש תבנית שעה HH:MM
-            time_match = re.search(r'([01]?\d|2[0-3]):[0-5]\d', combined_text)
+            # שלב 3: זיהוי שעה בתוך החיתוך
+            roi_np = np.array(roi_img)
+            ocr_results = reader.readtext(roi_np, detail=0, allowlist="0123456789:")
+            combined = " ".join(ocr_results)
+            
+            time_match = re.search(r'([01]?\d|2[0-3]):[0-5]\d', combined)
             found_time = time_match.group(0) if time_match else None
             
-            # חילוץ מזהה תעודה משם הקובץ
-            ticket_id = "".join(filter(str.isdigit, filename))[:7]
-            
             all_results.append({
-                "ticketId": ticket_id or "0000000",
+                "ticketId": "".join(filter(str.isdigit, filename))[:7] or "000",
                 "handwrittenTime": found_time,
-                "status": "Success" if found_time else "Time_Not_Found",
+                "status": "Success" if found_time else "Not_Found",
                 "filename": filename
             })
             print(f"Result for {filename}: {found_time}")
 
         except Exception as e:
-            print(f"❌ Failed to process {filename}: {e}")
+            print(f"❌ Error processing {filename}: {e}")
 
-    # שמירת התוצאות ל-JSON
     with open(RESULTS_FILE, 'w', encoding='utf-8') as f:
         json.dump(all_results, f, indent=2, ensure_ascii=False)
-    
-    print(f"--- Analysis Finished. JSON saved to {RESULTS_FILE} ---")
+    print("--- Analysis Completed ---")
 
 if __name__ == "__main__":
     run_analysis()
