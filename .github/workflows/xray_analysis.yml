@@ -4,12 +4,11 @@ on:
   push:
     paths:
       - 'scripts/downloads/**'
-  workflow_dispatch: # מאפשר הרצה ידנית בלחיצת כפתור
+  workflow_dispatch:
 
 jobs:
   analyze:
     runs-on: ubuntu-latest
-    timeout-minutes: 15 # הגדלת זמן הריצה כדי למנוע קטיעה בהורדה
     steps:
       - uses: actions/checkout@v4
 
@@ -28,11 +27,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y tesseract-ocr tesseract-ocr-heb poppler-utils
-          
+
       - name: Install Python Libraries
-        run: |
-          pip install --upgrade pip
-          pip install -r scripts/requirements.txt
+        run: pip install -r scripts/requirements.txt
 
       - name: Run X-Ray Analysis
         run: python scripts/xray_analysis.py
@@ -40,8 +37,8 @@ jobs:
           PYTHONUNBUFFERED: 1
 
       - name: Upload Results
-        if: always() # תמיד ינסה להעלות, גם אם הסקריפט נכשל באמצע
-        uses: uses/upload-artifact@v4
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
           name: xray-results
           path: scripts/results.json
