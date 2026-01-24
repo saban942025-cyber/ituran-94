@@ -1,9 +1,7 @@
 'use client';
 import { useEffect, useState, useMemo } from 'react';
-// ייבוא בסיס הנתונים מתוך lib/firebase
 import { db } from '../lib/firebase'; 
 import { ref, onValue, remove } from 'firebase/database';
-// ייבוא האייקונים הנדרשים - כולל CheckCircle שגרם לשגיאה ב-Build
 import { 
   Zap, Fuel, Gauge, Clock, ChevronDown, Activity, AlertTriangle, X, User, CheckCircle, MapPin, Trash2, ExternalLink 
 } from 'lucide-react';
@@ -15,7 +13,6 @@ export default function SabanEliteDashboardV8() {
   const [activeDriver, setActiveDriver] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  // פרופילי נהגים לכפתורים בראש הדף
   const driverProfiles = [
     { id: 'חכמת', img: '🏗️', role: 'מנוף' },
     { id: 'מוחמד אכבריה', img: '🚚', role: 'סמי' },
@@ -34,11 +31,10 @@ export default function SabanEliteDashboardV8() {
     });
   }, []);
 
-  // חישוב מדדי צי וניתוח "פיפסים"
   const stats = useMemo(() => {
     const today = deliveryHistory.filter(t => t.date === selectedDate);
     return {
-      totalPTO: today.filter(t => t.aiAnalysis.includes('🏗️')).length,
+      totalPTO: today.filter(t => t.aiAnalysis && t.aiAnalysis.includes('🏗️')).length,
       idlingHours: "1.4", 
       efficiency: "92%",
       topIdlers: [
@@ -54,18 +50,15 @@ export default function SabanEliteDashboardV8() {
     };
   }, [deliveryHistory, selectedDate]);
 
-  // סינון היסטוריה לפי נהג נבחר ואירועי קצה
   const filteredHistory = useMemo(() => {
     return deliveryHistory.filter(t => 
       t.date === selectedDate && 
-      (!activeDriver || t.aiAnalysis.includes(activeDriver))
+      (!activeDriver || (t.aiAnalysis && t.aiAnalysis.includes(activeDriver)))
     );
   }, [deliveryHistory, selectedDate, activeDriver]);
 
   return (
     <div className="min-h-screen bg-[#F2F2F7] font-sans text-right pb-10" dir="rtl">
-      
-      {/* Header - תואם מובייל עם כפתורי נהגים רחבים */}
       <header className="bg-[#001D3D] sticky top-0 z-[100] p-5 rounded-b-[2.5rem] shadow-xl">
         <div className="flex justify-between items-center mb-6 text-white">
           <div>
@@ -78,7 +71,7 @@ export default function SabanEliteDashboardV8() {
         <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
            <button 
             onClick={() => setActiveDriver(null)}
-            className={`flex-shrink-0 w-20 h-24 rounded-[1.5rem] flex flex-col items-center justify-center transition-all ${{activeDriver === null ? 'bg-white text-blue-900 scale-105' : 'bg-blue-900/50 text-blue-200 opacity-60'}}`}
+            className={`flex-shrink-0 w-20 h-24 rounded-[1.5rem] flex flex-col items-center justify-center transition-all ${activeDriver === null ? 'bg-white text-blue-900 scale-105' : 'bg-blue-900/50 text-blue-200 opacity-60'}`}
           >
             <span className="text-2xl mb-1">🌐</span>
             <span className="text-[10px] font-black">כל הצי</span>
@@ -87,7 +80,7 @@ export default function SabanEliteDashboardV8() {
             <button 
               key={driver.id}
               onClick={() => setActiveDriver(driver.id)}
-              className={`flex-shrink-0 w-24 h-24 rounded-[1.5rem] flex flex-col items-center justify-center transition-all ${{activeDriver === driver.id ? 'bg-white text-blue-900 scale-105 shadow-lg' : 'bg-blue-900/50 text-blue-100 opacity-60'}}`}
+              className={`flex-shrink-0 w-24 h-24 rounded-[1.5rem] flex flex-col items-center justify-center transition-all ${activeDriver === driver.id ? 'bg-white text-blue-900 scale-105 shadow-lg' : 'bg-blue-900/50 text-blue-100 opacity-60'}`}
             >
               <span className="text-3xl mb-1">{driver.img}</span>
               <span className="text-[10px] font-black">{driver.id.split(' ')[0]}</span>
@@ -98,8 +91,6 @@ export default function SabanEliteDashboardV8() {
       </header>
 
       <main className="p-4 space-y-4 max-w-4xl mx-auto">
-        
-        {/* מדדי יעילות לחיצים */}
         <div className="grid grid-cols-2 gap-4">
           <button onClick={() => setActivePopup('efficiency')} className="bg-white p-5 rounded-[2rem] shadow-sm border-b-8 border-blue-500 text-right active:scale-95 transition-transform">
             <Zap className="text-blue-500 mb-2" size={28} />
@@ -113,20 +104,19 @@ export default function SabanEliteDashboardV8() {
           </button>
         </div>
 
-        {/* רשימת נסיעות נפתחת (המבורגר) */}
         <h2 className="text-sm font-black text-slate-500 mt-6 mb-2 uppercase tracking-widest">יומן אירועים ותפיסת פיפסים</h2>
         {filteredHistory.map((ticket) => (
-          <div key={ticket.id} className="bg-white rounded-[2rem] shadow-sm overflow-hidden border-r-[10px]" style={{ borderRightColor: ticket.statusColor }}>
+          <div key={ticket.id} className="bg-white rounded-[2rem] shadow-sm overflow-hidden border-r-[10px]" style={{ borderRightColor: ticket.statusColor || '#0046ad' }}>
             <div 
               className="p-5 flex justify-between items-center cursor-pointer hover:bg-slate-50"
               onClick={() => setExpandedId(expandedId === ticket.id ? null : ticket.id)}
             >
               <div className="flex items-center gap-4">
                 <div className="bg-slate-100 p-3 rounded-2xl text-2xl">
-                  {ticket.aiAnalysis.includes('🏗️') ? '🏗️' : '🛑'}
+                  {ticket.aiAnalysis && ticket.aiAnalysis.includes('🏗️') ? '🏗️' : '🛑'}
                 </div>
                 <div>
-                  <h4 className="font-black text-slate-900">{ticket.ticketId.replace('משלוח-', 'תעודה #')}</h4>
+                  <h4 className="font-black text-slate-900">{(ticket.ticketId || '').replace('משלוח-', 'תעודה #')}</h4>
                   <p className="text-xs font-bold text-slate-400">{ticket.customer}</p>
                 </div>
               </div>
@@ -134,7 +124,7 @@ export default function SabanEliteDashboardV8() {
             </div>
 
             {expandedId === ticket.id && (
-              <div className="p-6 pt-0 border-t border-slate-50 animate-in slide-in-from-top-2">
+              <div className="p-6 pt-0 border-t border-slate-50">
                 <div className="bg-blue-50/50 rounded-2xl p-4 mb-4 border border-blue-100">
                   <p className="text-[11px] font-black text-blue-700 mb-1 flex items-center gap-1 uppercase">
                     <Activity size={14}/> ניתוח AI דינמי:
@@ -165,10 +155,9 @@ export default function SabanEliteDashboardV8() {
         ))}
       </main>
 
-      {/* Popups - תיקון שגיאת TypeScript על ידי שימוש ב-any */}
       {activePopup && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[200] flex items-end justify-center">
-          <div className="bg-white w-full max-w-lg rounded-t-[3rem] p-8 shadow-2xl animate-in slide-in-from-bottom-10">
+          <div className="bg-white w-full max-w-lg rounded-t-[3rem] p-8 shadow-2xl">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-black flex items-center gap-2 text-blue-900">
                 {activePopup === 'waste' ? <AlertTriangle className="text-red-500"/> : <CheckCircle className="text-blue-500"/>}
