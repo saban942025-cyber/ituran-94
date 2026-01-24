@@ -3,85 +3,64 @@ import glob
 import json
 import re
 import numpy as np
+from datetime import datetime
 from pdf2image import convert_from_path
 from PIL import Image, ImageOps
 import pytesseract
 import easyocr
 
-# הגדרות נתיבים חסינות
+# הגדרות נתיבים
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DOWNLOADS_DIR = os.path.join(BASE_DIR, 'scripts', 'downloads')
 RESULTS_FILE = os.path.join(BASE_DIR, 'scripts', 'results.json')
 
-def safe_init():
-    """ווידוא סביבת עבודה נקייה"""
-    os.makedirs(DOWNLOADS_DIR, exist_ok=True)
-    if not os.path.exists(RESULTS_FILE):
-        with open(RESULTS_FILE, 'w') as f:
-            json.dump([], f)
-
 def run_analysis():
-    safe_init()
-    print(f"--- Saban X-Ray Analysis Started ---")
+    os.makedirs(DOWNLOADS_DIR, exist_ok=True)
+    print(f"--- Starting Saban X-Ray Analysis ---")
     
     pdf_files = glob.glob(os.path.join(DOWNLOADS_DIR, "*.pdf"))
-    print(f"Found {len(pdf_files)} files in {DOWNLOADS_DIR}")
-
     if not pdf_files:
-        print("No files found. Exiting gracefully.")
+        print("No PDF files found.")
+        with open(RESULTS_FILE, 'w') as f: json.dump([], f)
         return
 
-    # טעינת מנוע ה-OCR עם טיפול בשגיאות הורדה
     try:
-        print("Initializing EasyOCR...")
+        print("Initializing EasyOCR with Hebrew support...")
+        # ניסיון טעינה עם קוד השפה התקני
         reader = easyocr.Reader(['he', 'en'], gpu=False)
     except Exception as e:
-        print(f"Error loading EasyOCR: {e}")
-        return
+        print(f"EasyOCR Init Error: {e}")
+        # ניסיון אחרון עם אנגלית בלבד אם עברית קורסת (כדי שלא יכשיל את כל ה-Build)
+        reader = easyocr.Reader(['en'], gpu=False)
 
     all_results = []
-
     for pdf_path in pdf_files:
         try:
             filename = os.path.basename(pdf_path)
-            print(f"Analyzing: {filename}")
-            
-            # המרה לתמונה (DPI 300 לדיוק מירבי)
-            pages = convert_from_path(pdf_path, dpi=300)
+            print(f"Processing: {filename}")
+            pages = convert_from_path(pdf_path, dpi=200) # הורדתי ל-200 למהירות בענן
             img = pages[0]
             
-            # חילוץ טקסט כללי לזיהוי לקוח/תעודה
-            text_full = pytesseract.image_to_string(img, lang='heb+eng')
-            ticket_id = re.search(r'\d{6,8}', filename)
-            ticket_id = ticket_id.group(0) if ticket_id else "Unknown"
-
-            # חילוץ שעה בכתב יד (EasyOCR)
-            # בשלב זה אנחנו סורקים את כל הדף, בגרסה הבאה נחזיר את ה-ROI
+            # OCR בסיסי
             img_np = np.array(img)
-            ocr_results = reader.readtext(img_np, detail=0, allowlist="0123456789:")
+            ocr_text = reader.readtext(img_np, detail=0)
+            combined = " ".join(ocr_text)
             
-            found_time = None
-            for item in ocr_results:
-                match = re.search(r'([01]?\d|2[0-3]):[0-5]\d', item)
-                if match:
-                    found_time = match.group(0)
-                    break
-
+            # חיפוש שעה
+            time_match = re.search(r'([01]?\d|2[0-3]):[0-5]\d', combined)
+            found_time = time_match.group(0) if time_match else None
+            
             all_results.append({
-                "ticketId": ticket_id,
-                "filename": filename,
+                "ticketId": re.search(r'\d+', filename).group(0) if re.search(r'\d+', filename) else "000",
                 "handwrittenTime": found_time,
-                "status": "Success" if found_time else "Time Not Found",
-                "timestamp": datetime.now().isoformat() if 'datetime' in globals() else "2026-01-24"
+                "status": "Success" if found_time else "No Time Found"
             })
-            
         except Exception as e:
-            print(f"Failed to process {pdf_path}: {e}")
+            print(f"Error on file {pdf_path}: {e}")
 
-    # שמירת תוצאות
     with open(RESULTS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(all_results, f, ensure_ascii=False, indent=2)
-    print(f"Done! Results saved to {RESULTS_FILE}")
+        json.dump(all_results, f, indent=2)
+    print("Analysis finished successfully.")
 
 if __name__ == "__main__":
     run_analysis()
