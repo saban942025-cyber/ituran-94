@@ -1,16 +1,29 @@
 {
-  "name": "Saban Elite Fleet",
-  "short_name": "SabanAI",
-  "description": "ניהול צי חכם ח.סבן",
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#0046ad",
+  "short_name": "SabanElite",
+  "name": "ח.סבן - מערכת בקרה X-RAY",
+  "description": "מערכת ניהול צי, הצלבת תעודות וניתוח איתוראן - ח.סבן חומרי בניין",
   "icons": [
     {
-      "src": "/icon.png",
-      "sizes": "192x192",
-      "type": "image/png"
+      "src": "favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
     }
-  ]
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#001D3D",
+  "background_color": "#F2F4F7",
+  "orientation": "portrait",
+  "lang": "he-IL",
+  "dir": "rtl"
 }
