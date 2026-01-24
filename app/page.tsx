@@ -4,10 +4,10 @@ import { db } from '../lib/firebase';
 import { ref, onValue, push, query, orderByChild, equalTo, get, update, remove } from 'firebase/database';
 import { 
   Zap, Fuel, Clock, ChevronDown, Activity, AlertTriangle, X, FileText, 
-  Database, MapPin, ExternalLink, Microscope, Trash2, AlertCircle, Smartphone, Share, LayoutGrid
+  Database, MapPin, ExternalLink, Microscope, Trash2, AlertCircle, Smartphone, Share, LayoutGrid, Search
 } from 'lucide-react';
 
-export default function SabanEliteFinalV20() {
+export default function SabanEliteFinalV21() {
   const [deliveryHistory, setDeliveryHistory] = useState<any[]>([]);
   const [selectedDate, setSelectedDate] = useState('2026-01-19');
   const [activePopup, setActivePopup] = useState<'inject' | null>(null);
@@ -18,19 +18,14 @@ export default function SabanEliteFinalV20() {
   const [isStandalone, setIsStandalone] = useState(true);
 
   useEffect(() => {
-    // 1. רישום Service Worker להתקנה בגלקסי/אנדרואיד
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW Error:', err));
     }
-
-    // 2. בדיקת מצב אפליקציה מותקנת (iOS + Android)
     const checkMode = () => {
       const isPWA = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
       setIsStandalone(isPWA);
     };
     checkMode();
-
-    // 3. בקשת הרשאה להתראות
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission();
     }
@@ -42,9 +37,7 @@ export default function SabanEliteFinalV20() {
       if (snapshot.exists()) {
         const data = snapshot.val();
         setDeliveryHistory(Object.keys(data).map(k => ({ id: k, ...data[k] })));
-      } else {
-        setDeliveryHistory([]);
-      }
+      } else { setDeliveryHistory([]); }
     });
   }, []);
 
@@ -61,11 +54,8 @@ export default function SabanEliteFinalV20() {
         await update(historyRef, updates);
         alert('היום נמחק בהצלחה.');
       }
-    } catch (e) {
-      alert('שגיאה במחיקה');
-    } finally {
-      setIsDeleting(false);
-    }
+    } catch (e) { alert('שגיאה במחיקה'); }
+    finally { setIsDeleting(false); }
   };
 
   const filtered = useMemo(() => {
@@ -74,7 +64,6 @@ export default function SabanEliteFinalV20() {
     );
   }, [deliveryHistory, selectedDate, activeDriver]);
 
-  // מסך חסימה - מחייב התקנה כאפליקציה
   if (!isStandalone) {
     return (
       <div className="fixed inset-0 bg-[#001D3D] z-[999] flex flex-col items-center justify-center p-10 text-center text-white" dir="rtl">
@@ -83,7 +72,6 @@ export default function SabanEliteFinalV20() {
         </div>
         <h1 className="text-2xl font-black mb-2 italic tracking-tighter text-white">SABAN ELITE</h1>
         <p className="text-sm font-bold text-blue-200 mb-8 uppercase tracking-widest">חובה להתקין כאפליקציה</p>
-        
         <div className="bg-white/5 p-6 rounded-[2.5rem] border border-white/10 w-full space-y-6 text-right shadow-inner">
           <div>
             <p className="text-yellow-400 text-[10px] font-black mb-2 tracking-widest uppercase">אייפון (Safari):</p>
@@ -101,7 +89,6 @@ export default function SabanEliteFinalV20() {
 
   return (
     <div className="min-h-screen bg-[#F3F4F6] pb-24 select-none" dir="rtl">
-      {/* Header יוקרתי */}
       <header className="bg-[#001D3D] p-5 rounded-b-[2.5rem] sticky top-0 z-50 shadow-2xl">
         <div className="flex justify-between items-center mb-6 pt-4">
           <div className="flex items-center gap-2 text-white">
@@ -129,7 +116,7 @@ export default function SabanEliteFinalV20() {
         )}
         
         {filtered.sort((a,b) => (b.timestamp || 0) - (a.timestamp || 0)).map((t) => (
-          <div key={t.id} className={`bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden active:scale-[0.98] transition-all`}>
+          <div key={t.id} className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden active:scale-[0.98] transition-all">
             <div className="p-5" onClick={() => setExpandedId(expandedId === t.id ? null : t.id)}>
               <div className="flex justify-between items-start mb-4">
                 <div className="flex items-center gap-3">
@@ -148,14 +135,13 @@ export default function SabanEliteFinalV20() {
             {expandedId === t.id && (
               <div className="px-5 pb-5 flex gap-2 animate-in slide-in-from-top-2">
                 <a href={t.spLink || '#'} target="_blank" className="flex-1 bg-blue-950 text-white py-4 rounded-xl font-black text-[10px] text-center uppercase tracking-widest shadow-lg flex items-center justify-center gap-2"><ExternalLink size={14}/> פתח תעודה</a>
-                <button onClick={() => remove(ref(db, `delivery_history/${t.id}`))} className="p-4 bg-red-50 text-red-500 rounded-xl active:bg-red-500 active:text-white"><Trash2 size={20}/></button>
+                <button onClick={() => remove(ref(db, `delivery_history/${t.id}`))} className="p-3 bg-red-50 text-red-500 rounded-xl active:bg-red-500 active:text-white"><Trash2 size={20}/></button>
               </div>
             )}
           </div>
         ))}
       </main>
 
-      {/* Popup ניהול והזרקה */}
       {activePopup === 'inject' && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[200] flex items-end justify-center p-4">
           <div className="bg-white w-full rounded-[2.5rem] p-8 shadow-2xl animate-in slide-in-from-bottom-20 max-w-lg">
@@ -182,7 +168,6 @@ export default function SabanEliteFinalV20() {
         </div>
       )}
 
-      {/* תפריט ניווט תחתון (Bottom Nav) */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t p-4 flex justify-around items-center z-50 shadow-[0_-10px_20px_rgba(0,0,0,0.05)]">
         <div className="flex flex-col items-center gap-1 text-blue-600 active:scale-90 transition-transform"><LayoutGrid size={22}/><span className="text-[8px] font-black uppercase">שליטה</span></div>
         <div onClick={() => setActivePopup('inject')} className="flex flex-col items-center gap-1 text-slate-300 active:scale-90 transition-transform"><Database size={22}/><span className="text-[8px] font-black uppercase">ניהול</span></div>
