@@ -3,7 +3,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { db } from '../lib/firebase'; 
 import { ref, onValue } from 'firebase/database';
 import { 
-  Zap, Fuel, Gauge, Clock, ChevronDown, Activity, AlertTriangle, TrendingDown, X, User
+  Zap, Fuel, Gauge, Clock, ChevronDown, Activity, AlertTriangle, TrendingDown, X, User, CheckCircle
 } from 'lucide-react';
 
 export default function SabanEliteDashboardV8() {
