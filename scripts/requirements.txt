@@ -1,0 +1,16 @@
+# --- תשתית ליבה ---
+requests==2.31.0
+msal==1.26.0
+python-dateutil==2.8.2
+numpy==1.26.4
+
+# --- עיבוד תמונות ו-PDF ---
+pdf2image==1.17.0
+Pillow==10.2.0
+
+# --- מנועי בינה מלאכותית (OCR) ---
+pytesseract==0.3.10
+easyocr==1.7.1
+
+# --- עזרים ---
+opencv-python-headless==4.9.0.80
