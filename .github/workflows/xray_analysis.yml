@@ -3,13 +3,19 @@ name: Saban X-Ray Auto Engine
 on:
   push:
     paths:
-      - 'scripts/downloads/**' # ירוץ אוטומטית כשראמי מעלה PDF לתיקייה
+      - 'scripts/downloads/**'
 
 jobs:
   analyze:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Cache EasyOCR Models
+        uses: actions/cache@v4
+        with:
+          path: ~/.EasyOCR
+          key: ${{ runner.os }}-easyocr-v1
 
       - name: Install System Dependencies
         run: |
@@ -26,6 +32,8 @@ jobs:
 
       - name: Run X-Ray Analysis
         run: python scripts/xray_analysis.py
+        env:
+          PYTHONUNBUFFERED: 1 # מאפשר לראות לוגים בזמן אמת
 
       - name: Upload Results
         uses: actions/upload-artifact@v4
