@@ -1,15 +1,23 @@
-import { initializeApp, getApps } from "firebase/app";
-import { getDatabase } from "firebase/database";
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { getFirestore } from "firebase/firestore";
+import { getDatabase } from "firebase/database"; // 1. ייבוא השירות
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAXb3Of5uay1-hR9Z7WGyNwzSuUaqa4OvU",
-  authDomain: "ituran-9722e.firebaseapp.com",
-  databaseURL: "https://ituran-9722e-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "ituran-9722e",
-  storageBucket: "ituran-9722e.firebasestorage.app",
-  messagingSenderId: "18206679990",
-  appId: "1:18206679990:web:dc47046a30428152101717"
+  apiKey: "AIzaSyBGYsZylsIyeWudp8_SlnLBelkgoNXjU60",
+  authDomain: "app-saban94-57361.firebaseapp.com",
+  databaseURL: "https://app-saban94-57361-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "app-saban94-57361",
+  storageBucket: "app-saban94-57361.firebasestorage.app",
+  messagingSenderId: "275366913167",
+  appId: "1:275366913167:web:f0c6f808e12f2aeb58fcfa",
+  measurementId: "G-E297QYKZKQ"
 };
 
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-export const db = getDatabase(app);
+// אתחול Singleton
+const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+
+// ייצוא השירותים
+const db = getFirestore(app); // Firestore הרגיל
+const database = getDatabase(app); // ה-Realtime שדף הדיווחים צריך
+
+export { db, database }; // 2. הייצוא הקריטי שחסר לך
