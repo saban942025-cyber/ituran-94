@@ -1,104 +1,82 @@
 'use client';
-import { useState } from 'react';
-import { db } from '../../lib/firebase';
-import { ref, push, serverTimestamp } from 'firebase/database';
+import { useState, useEffect } from 'react';
+import { database } from '@/lib/firebase';
+import { ref, get } from 'firebase/database';
+import { Truck, Calendar, Activity, Clock } from 'lucide-react';
 
-export default function DeliveryReportsPage() {
-  const [jsonInput, setJsonInput] = useState('');
-  const [parsedData, setParsedData] = useState<any[]>([]);
-  const [isSaving, setIsSaving] = useState(false);
+export default function DailyReport() {
+  const [selectedDate, setSelectedDate] = useState('2026-01-29');
+  const [data, setData] = useState<any>(null);
 
-  // פונקציה לעיבוד ה-JSON שהתקבל מהפקודה
-  const handleParse = () => {
-    try {
-      const data = JSON.parse(jsonInput);
-      setParsedData(Array.isArray(data) ? data : [data]);
-    } catch (e) {
-      alert('שגיאה בפורמט ה-JSON. וודא שהעתקת את הפלט מה-AI במדויק.');
-    }
-  };
-
-  // שמירת התעודות המאושרות ל-Firebase (היסטוריית תעודות)
-  const saveToFirebase = async () => {
-    setIsSaving(true);
-    try {
-      const historyRef = ref(db, 'delivery_history');
-      for (const ticket of parsedData) {
-        await push(historyRef, {
-          ...ticket,
-          processedAt: serverTimestamp(),
-          status: ticket.status || 'Pending'
-        });
-      }
-      alert('התעודות נשמרו בהצלחה במאגר ההיסטורי!');
-      setParsedData([]);
-      setJsonInput('');
-    } catch (e) {
-      console.error(e);
-      alert('שגיאה בשמירה ל-Firebase');
-    }
-    setIsSaving(false);
-  };
+  useEffect(() => {
+    // משיכת הנתונים לפי התאריך שנבחר
+    const reportRef = ref(database, `daily_analysis/${selectedDate}`);
+    get(reportRef).then((snapshot) => {
+      if (snapshot.exists()) setData(snapshot.val());
+    });
+  }, [selectedDate]);
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8" dir="rtl">
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold text-blue-900">קליטת תעודות משלוח AI</h1>
-        <p className="text-gray-600">הדבק את פלט ה-JSON מהניתוח כדי לעדכן את המאגר</p>
-      </header>
+    <div dir="rtl" className="min-h-screen bg-gray-50 pb-20 font-sans">
+      {/* Header עם תפריט המבורגר */}
+      <nav className="bg-black text-white p-4 flex justify-between items-center sticky top-0 z-50">
+        <div className="text-xl font-black italic">SABAN LOGISTICS</div>
+        <button className="p-2">☰</button>
+      </nav>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* אזור הזנת פקודה */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border">
-          <label className="block font-bold mb-2">פלט JSON מה-AI:</label>
-          <textarea
-            className="w-full h-64 p-4 border rounded-xl font-mono text-sm bg-gray-900 text-green-400"
-            placeholder='[{"ticketId": "6710318", ...}]'
-            value={jsonInput}
-            onChange={(e) => setJsonInput(e.target.value)}
+      <div className="p-6">
+        <h1 className="text-3xl font-black text-gray-900 mb-2">סיכום יומי</h1>
+        
+        {/* בחירת תאריך */}
+        <div className="flex items-center gap-2 bg-white p-3 rounded-2xl shadow-sm mb-8">
+          <Calendar className="text-blue-600" size={20} />
+          <input 
+            type="date" 
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="font-bold outline-none w-full"
           />
-          <button
-            onClick={handleParse}
-            className="mt-4 w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition"
-          >
-            נתח נתונים לתצוגה
-          </button>
         </div>
 
-        {/* תצוגת אישור לפני שמירה */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border">
-          <h2 className="text-xl font-bold mb-4">תצוגה מקדימה ואישור</h2>
-          {parsedData.length > 0 ? (
-            <div className="space-y-4">
-              {parsedData.map((ticket, idx) => (
-                <div key={idx} className={`p-4 rounded-lg border-2 ${ticket.status === 'Red' ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'}`}>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <span className="font-black text-lg">#{ticket.ticketId}</span>
-                      <p className="font-bold">{ticket.customer}</p>
-                    </div>
-                    <span className={`px-2 py-1 rounded text-xs font-bold ${ticket.status === 'Red' ? 'bg-red-500 text-white' : 'bg-green-500 text-white'}`}>
-                      {ticket.status === 'Red' ? 'טעון בדיקה' : 'תקין'}
-                    </span>
-                  </div>
-                  <div className="mt-2 text-sm grid grid-cols-2 gap-2">
-                    <p><b>נהג:</b> {ticket.driver}</p>
-                    <p><b>זמן מנוף:</b> {ticket.craneMinutes} דק'</p>
-                    <p className="col-span-2 text-xs text-gray-500 italic"><b>הערות:</b> {ticket.notes || 'אין'}</p>
-                  </div>
-                </div>
-              ))}
-              <button
-                onClick={saveToFirebase}
-                disabled={isSaving}
-                className="w-full bg-green-600 text-white font-bold py-3 rounded-xl hover:bg-green-700 disabled:opacity-50"
-              >
-                {isSaving ? 'שומר במאגר...' : 'אשר ושמור בהיסטוריה'}
-              </button>
+        {/* השוואת נהגים */}
+        <div className="space-y-6">
+          {/* כרטיס חכמת - מרצדס */}
+          <div className="bg-white rounded-[30px] p-6 shadow-sm border-r-8 border-blue-600">
+            <div className="flex justify-between items-center mb-4">
+              <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-black">משאית מנוף</span>
+              <Truck size={24} className="text-blue-600" />
             </div>
-          ) : (
-            <p className="text-gray-400 italic text-center py-20">ממתין לנתונים לניתוח...</p>
-          )}
+            <h2 className="text-xl font-black">חכמת - מרצדס</h2>
+            <div className="grid grid-cols-2 gap-4 mt-4">
+              <div className="bg-gray-50 p-3 rounded-2xl text-center">
+                <p className="text-xs text-gray-500">זמן מנוף (PTO)</p>
+                <p className="text-lg font-black text-blue-600">{data?.mercedes?.pto || 0} דק'</p>
+              </div>
+              <div className="bg-gray-50 p-3 rounded-2xl text-center">
+                <p className="text-xs text-gray-500">ק"מ יומי</p>
+                <p className="text-lg font-black">{data?.mercedes?.km || 0}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* כרטיס עלי - איסוזו */}
+          <div className="bg-white rounded-[30px] p-6 shadow-sm border-r-8 border-orange-500">
+            <div className="flex justify-between items-center mb-4">
+              <span className="bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-xs font-black">פריקה ידנית</span>
+              <Activity size={24} className="text-orange-600" />
+            </div>
+            <h2 className="text-xl font-black">עלי - איסוזו</h2>
+            <div className="grid grid-cols-2 gap-4 mt-4 text-center">
+               <div className="bg-gray-50 p-3 rounded-2xl">
+                <p className="text-xs text-gray-500">ק"מ יומי</p>
+                <p className="text-lg font-black text-orange-600">{data?.isuzu?.km || 0}</p>
+              </div>
+              <div className="bg-gray-50 p-3 rounded-2xl text-center text-gray-400">
+                <p className="text-xs">ללא מנוף</p>
+                <p className="text-lg font-black">פלטה</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
