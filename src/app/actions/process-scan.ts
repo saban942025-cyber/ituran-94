@@ -1,71 +1,50 @@
-'use server';
-
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { db } from "@/lib/firebase"; 
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
-import { SABAN_OCR_SCHEMA, SABAN_PROMPT } from "../../lib/ocr-brain";
-
 export async function processScan(base64Image: string, location: any, localDraft: any) {
-  // 1. בדיקת מפתח API
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return { success: false, error: "API_KEY_MISSING: וודא שהגדרת GEMINI_API_KEY ב-Vercel" };
-  }
+  if (!apiKey) return { success: false, error: "מפתח API חסר ב-Vercel" };
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
-    
-    // 2. הכנת התמונה (חיתוך הקידומת)
-    const imageData = base64Image.split(',')[1];
+    // משתמשים בגרסת ה-Flash - היא הרבה יותר מהירה ופחות "רגישה" לחסימות
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-flash",
+    });
 
-    // 3. הגדרת JSON Mode
-    const genConfig: any = { responseMimeType: "application/json" };
+    // ניקוי יסודי של ה-Base64
+    const base64Data = base64Image.includes(',') ? base64Image.split(',')[1] : base64Image;
 
-    // 4. פנייה לג'ימיני
     const result = await model.generateContent({
       contents: [{ role: 'user', parts: [
-        { inlineData: { data: imageData, mimeType: "image/jpeg" } },
+        { inlineData: { data: base64Data, mimeType: "image/jpeg" } },
         { text: `${SABAN_PROMPT} 
-          נתונים מקוריים: ${JSON.stringify(localDraft)} 
-          מבנה נדרש: ${JSON.stringify(SABAN_OCR_SCHEMA)}` 
+          Draft: ${JSON.stringify(localDraft)} 
+          Schema: ${JSON.stringify(SABAN_OCR_SCHEMA)}
+          Return JSON only.` 
         }
       ]}],
-      generationConfig: genConfig
+      // הגדרות למניעת חסימות מיותרות של גוגל
+      safetySettings: [
+        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+      ],
+      generationConfig: { responseMimeType: "application/json" }
     });
 
-    const responseText = result.response.text();
+    const data = JSON.parse(result.response.text().trim());
     
-    // 5. ניקוי ופענוח JSON
-    let cleanJson = responseText.replace(/```json|```/g, '').trim();
-    const data = JSON.parse(cleanJson);
-
-    // 6. שמירה ל-Firebase
-    const docRef = await addDoc(collection(db, "processed_notes"), {
+    // שמירה ל-Firebase
+    await addDoc(collection(db, "processed_notes"), {
       ...data,
       driver: "חכמת",
-      location: location || { lat: 0, lng: 0 },
-      timestamp: serverTimestamp(),
-      system_log: "Processed via Gemini 1.5 Pro"
+      timestamp: serverTimestamp()
     });
 
-    // 7. התראה למשרד אם יש שינוי
-    if (data.hasChanges) {
-       await addDoc(collection(db, "diff_alerts"), {
-         invoiceNumber: data.invoiceNumber,
-         at: new Date().toISOString(),
-         diff: data,
-         driverName: "חכמת"
-       });
-    }
-
-    return { success: true, id: docRef.id, data };
+    return { success: true, data };
 
   } catch (error: any) {
-    console.error("Saban AI Error:", error);
-    return { 
-      success: false, 
-      error: `GEMINI_REJECTED: ${error.message || "ג'ימיני לא הצליח לעבד את התמונה"}` 
-    };
+    console.error("Gemini Error Detail:", error);
+    // אם ג'ימיני דוחה בגלל עומס או בטיחות
+    return { success: false, error: "ג'ימיני עמוס או שהתמונה לא ברורה. נסה לצלם שוב מרחוק יותר." };
   }
 }
