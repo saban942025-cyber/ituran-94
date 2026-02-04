@@ -1,6 +1,6 @@
 'use server';
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { db } from "@/lib/firebase"; // וודא שהנתיב תקין
+import { db } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
@@ -8,27 +8,29 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 export async function processScan(base64Image: string, location: {lat: number, lng: number}) {
   try {
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
-    
-    // שליחה לג'ימיני
+    const imageData = base64Image.split(',')[1];
+
     const result = await model.generateContent([
-      { inlineData: { data: base64Image.split(',')[1], mimeType: "image/jpeg" } },
-      "Extract data from this delivery note as JSON. Include invoiceNumber, customerName, items (itemId, name, quantity), and handwrittenNotes."
+      { inlineData: { data: imageData, mimeType: "image/jpeg" } },
+      "Analyze this delivery note. Return JSON: { invoiceNumber: string, customerName: string, items: Array, handwrittenNotes: string, confidence: number }. If no invoice number found, return { error: 'ERR_NO_INVOICE' }"
     ]);
 
-    const data = JSON.parse(result.response.text());
+    const responseText = result.response.text();
+    const data = JSON.parse(responseText.replace(/```json|```/g, ''));
 
-    // שמירה ל-Firebase עם ה"מוח" הלוגיסטי
+    if (data.error === "ERR_NO_INVOICE") {
+      return { success: false, error: "לא נמצא מספר תעודה, קרב את המצלמה" };
+    }
+
     const docRef = await addDoc(collection(db, "processed_notes"), {
       ...data,
       driver: "חכמת",
       location,
-      status: data.items.some((i: any) => i.quantity > 100) ? "FLAGGED" : "APPROVED",
       timestamp: serverTimestamp()
     });
 
     return { success: true, id: docRef.id, data };
   } catch (error) {
-    console.error(error);
-    return { success: false, error: "Failed to process scan" };
+    return { success: false, error: "תקלה בעיבוד התמונה" };
   }
 }
