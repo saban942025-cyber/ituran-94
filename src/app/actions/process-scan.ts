@@ -9,40 +9,32 @@ export async function processScan(base64Image: string, location: any, localDraft
     process.env.GEMINI_API_KEY,
     process.env.GEMINI_API_KEY_2,
     process.env.GEMINI_API_KEY_3
-  ].filter(k => k && k.length > 10);
+  ].filter(Boolean) as string[];
 
-  if (keys.length === 0) return { success: false, error: "מפתחות API לא מוגדרים" };
+  if (keys.length === 0) return { success: false, error: "חסר מפתח API" };
 
+  // ניקוי ה-Base64
   const base64Data = base64Image.split(',')[1] || base64Image;
 
-  for (let key of keys) {
+  for (let i = 0; i < keys.length; i++) {
     try {
-      const genAI = new GoogleGenerativeAI(key!);
-      
-      // שינוי קריטי: משתמשים במודל הישן שנתמך ב-V1
-      const model = genAI.getGenerativeModel({ model: "gemini-pro-vision" });
-
-      const prompt = `נתח את תעודת המשלוח הזו. 
-      השווה לטיוטה: ${JSON.stringify(localDraft)}
-      חובה להחזיר JSON בלבד עם המבנה: 
-      {"invoiceNumber": "string", "items": [], "signatureFound": boolean}`;
+      const genAI = new GoogleGenerativeAI(keys[i]);
+      // עכשיו כשה-SDK מעודכן, המודל הזה יעבוד ב-100%
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
       const result = await model.generateContent([
-        prompt,
         {
           inlineData: {
             data: base64Data,
             mimeType: "image/jpeg"
           }
-        }
+        },
+        { text: "Analyze delivery note. Return ONLY JSON: {invoiceNumber, items: [], signatureFound: boolean}" }
       ]);
 
-      const response = await result.response;
-      const text = response.text();
-      
-      // חילוץ JSON פשוט
+      const text = result.response.text();
       const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error("JSON_NOT_FOUND");
+      if (!jsonMatch) throw new Error("JSON_MISSING");
       
       const data = JSON.parse(jsonMatch[0]);
 
@@ -50,20 +42,14 @@ export async function processScan(base64Image: string, location: any, localDraft
         ...data,
         driver: "חכמת",
         location,
-        timestamp: serverTimestamp(),
-        model_used: "gemini-pro-vision"
+        timestamp: serverTimestamp()
       });
 
       return { success: true, data };
 
     } catch (err: any) {
-      console.error("Attempt failed:", err.message);
-      if (err.message.includes("404")) {
-          // אם גם זה לא עובד, כנראה שה-SDK ממש דורש עדכון
-          return { success: false, error: "גרסת ה-SDK ישנה מדי. אנא הרץ npm install @google/generative-ai@latest" };
-      }
-      continue;
+      console.error(`מפתח ${i+1} נכשל:`, err.message);
+      if (i === keys.length - 1) return { success: false, error: "ג'ימיני לא זיהה, נסה שוב" };
     }
   }
-  return { success: false, error: "תקלה בסריקה" };
 }
