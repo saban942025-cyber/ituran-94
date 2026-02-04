@@ -5,60 +5,79 @@ import { db } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
 export async function processScan(base64Image: string, location: any, localDraft: any) {
+  // 1. הגדרת המפתחות
   const keys = [
     process.env.GEMINI_API_KEY,
     process.env.GEMINI_API_KEY_2,
     process.env.GEMINI_API_KEY_3
   ].filter(k => k && k.length > 10);
 
-  if (keys.length === 0) return { success: false, error: "מפתחות API לא מוגדרים" };
+  if (keys.length === 0) return { success: false, error: "מפתחות API לא מוגדרים ב-Vercel" };
 
-  const base64Data = base64Image.split(',')[1] || base64Image;
+  // 2. ניקוי התמונה לפורמט Base64 נקי
+  const base64Data = base64Image.replace(/^data:image\/(png|jpg|jpeg);base64,/, "");
+
   let lastError = "";
 
+  // 3. לולאת הדילוג בין המפתחות
   for (let key of keys) {
     try {
       const genAI = new GoogleGenerativeAI(key!);
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-      // כאן הסרנו את ה-responseMimeType שגרם לשגיאה 400
+      // שלב קריטי: אנחנו לא שולחים generationConfig עם responseMimeType
+      // אנחנו מבקשים את ה-JSON ישירות בטקסט
       const result = await model.generateContent([
-        { inlineData: { data: base64Data, mimeType: "image/jpeg" } },
-        { text: `Analyze this delivery note. Return ONLY a JSON object with: 
+        {
+          inlineData: {
+            data: base64Data,
+            mimeType: "image/jpeg"
+          }
+        },
+        {
+          text: `נער ניתוח OCR לתעודת משלוח.
+          השווה לנתונים האלו מהמשרד: ${JSON.stringify(localDraft)}
+          
+          חובה להחזיר אך ורק אובייקט JSON תקין במבנה הבא:
           {
             "invoiceNumber": "string",
             "items": [{"itemId": "string", "name": "string", "quantity": number}],
             "signatureFound": boolean,
             "hasChanges": boolean
           }
-          Do not include any other text, only the JSON.` 
+          בלי טקסט נוסף לפני או אחרי.`
         }
       ]);
 
-      const responseText = result.response.text();
+      const response = await result.response;
+      const text = response.text();
       
-      // חילוץ JSON חכם - מחפש את הסוגריים המסולסלים הראשונים והאחרונים
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error("No JSON found in response");
+      // 4. חילוץ JSON בטוח - לוקח רק מה שבין הסוגריים המסולסלים
+      const startJson = text.indexOf('{');
+      const endJson = text.lastIndexOf('}') + 1;
+      const jsonStr = text.substring(startJson, endJson);
       
-      const data = JSON.parse(jsonMatch[0]);
+      const data = JSON.parse(jsonStr);
 
-      // שמירה ל-Firebase
-      await addDoc(collection(db, "processed_notes"), {
+      // 5. שמירה ל-Firebase (ח. סבן הייטק)
+      const docRef = await addDoc(collection(db, "processed_notes"), {
         ...data,
         driver: "חכמת",
         location: location || { lat: 0, lng: 0 },
-        timestamp: serverTimestamp()
+        timestamp: serverTimestamp(),
+        api_version: "v1-legacy-safe"
       });
 
-      return { success: true, data };
+      return { success: true, id: docRef.id, data };
 
     } catch (err: any) {
       console.error("Key attempt failed:", err.message);
       lastError = err.message;
-      continue; // עובר למפתח הבא
+      // אם גוגל חסם בגלל בטיחות, אין טעם לנסות מפתח אחר על אותה תמונה
+      if (lastError.includes("SAFETY") || lastError.includes("blocked")) break;
+      continue; 
     }
   }
 
-  return { success: false, error: `שגיאה: ${lastError}` };
+  return { success: false, error: `כל הניסיונות נכשלו: ${lastError}` };
 }
