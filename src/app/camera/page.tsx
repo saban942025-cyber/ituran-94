@@ -1,101 +1,56 @@
 'use client';
 import React, { useRef, useState, useEffect } from 'react';
 import Webcam from 'react-webcam';
-import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { MapPin, Scan, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { processScan } from '../actions/process-scan';
+import { MapPin, CheckCircle } from 'lucide-react';
 
 export default function SmartScanner() {
   const webcamRef = useRef<Webcam>(null);
-  const [status, setStatus] = useState<'waiting_location' | 'searching' | 'locked' | 'success'>('waiting_location');
-  const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
-  const [countdown, setCountdown] = useState<number | null>(null);
+  const [status, setStatus] = useState('מבקש מיקום...');
+  const [loc, setLoc] = useState<any>(null);
+  const [done, setDone] = useState(false);
 
-  // 1. בקשת מיקום מאתר הלקוח (חובה)
   useEffect(() => {
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-          setStatus('searching');
-        },
-        () => alert("חובה לאשר מיקום כדי לתעד את הגעתך ללקוח!")
-      );
-    }
+    navigator.geolocation.getCurrentPosition(
+      (p) => { setLoc({lat: p.coords.latitude, lng: p.coords.longitude}); setStatus('הכנס תעודה למסגרת'); },
+      () => setStatus('חובה לאשר מיקום!')
+    );
   }, []);
 
-  // 2. מנגנון "נעילה" על מסמך (רק אם יש מיקום)
-  useEffect(() => {
-    if (status === 'searching' && location) {
-      const timer = setTimeout(() => {
-        setStatus('locked');
-        setCountdown(3);
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [status, location]);
-
-  useEffect(() => {
-    if (countdown !== null && countdown > 0) {
-      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
-      return () => clearTimeout(timer);
-    } else if (countdown === 0) {
-      capture();
-    }
-  }, [countdown]);
-
   const capture = async () => {
-    const imageSrc = webcamRef.current?.getScreenshot();
-    if (imageSrc && location) {
-      setStatus('success');
-      try {
-        await addDoc(collection(db, 'driver_scans'), {
-          driver: 'חכמת',
-          image: imageSrc,
-          location: location, // תיעוד המיקום של חכמת אצל הלקוח
-          timestamp: serverTimestamp(),
-          mode: 'PWA_AUTO_SCAN'
-        });
-      } catch (e) { console.error(e); }
-    }
+    if (!webcamRef.current || !loc) return;
+    setStatus('סורק ושולח...');
+    const img = webcamRef.current.getScreenshot();
+    const res = await processScan(img!, loc);
+    if (res.success) { setDone(true); setStatus('נשלח בהצלחה!'); }
   };
 
-  if (status === 'waiting_location') {
-    return (
-      <div className="h-screen bg-black flex flex-col items-center justify-center p-10 text-center">
-        <MapPin size={80} className="text-[#C9A227] animate-bounce mb-6" />
-        <h1 className="text-3xl font-black text-white">מאשר מיקום מול איתורן...</h1>
-      </div>
-    );
-  }
+  if (done) return (
+    <div className="h-screen bg-black flex flex-col items-center justify-center text-green-500">
+      <CheckCircle size={100} />
+      <h1 className="text-4xl font-black mt-4">הכל אצל גליה!</h1>
+      <button onClick={() => window.location.reload()} className="mt-8 bg-white text-black px-10 py-4 rounded-full font-bold">תעודה הבאה</button>
+    </div>
+  );
 
   return (
-    <div className="relative h-screen w-full bg-black overflow-hidden">
-      <Webcam audio={false} ref={webcamRef} screenshotFormat="image/jpeg" videoConstraints={{ facingMode: "environment" }} className="absolute inset-0 h-full w-full object-cover" />
-
-      {/* הנחיות ענק לחכמת */}
-      <div className="absolute inset-0 z-10 flex flex-col items-center justify-center pointer-events-none">
-        <div className="mb-10 bg-black/80 backdrop-blur-xl px-12 py-8 rounded-[3rem] border-4 border-[#C9A227] text-center max-w-[90%]">
-          <h2 className={`text-4xl md:text-6xl font-black uppercase ${status === 'locked' ? 'text-green-400' : 'text-[#C9A227]'}`}>
-            {status === 'searching' ? 'חפש תעודה...' : 'מזהה! אל תזוז'}
-          </h2>
-          {countdown !== null && countdown > 0 && <div className="text-9xl font-black text-white mt-4">{countdown}</div>}
+    <div className="relative h-screen bg-black overflow-hidden">
+      <Webcam ref={webcamRef} screenshotFormat="image/jpeg" className="absolute inset-0 h-full w-full object-cover" />
+      
+      {/* שכבת ההנחיות של סבן */}
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <div className="bg-black/70 px-8 py-4 rounded-2xl border-2 border-[#C9A227] mb-8">
+          <p className="text-[#C9A227] text-2xl font-black animate-pulse">{status}</p>
+        </div>
+        
+        <div className="w-[85%] aspect-[3/4] border-[10px] border-[#C9A227]/50 rounded-[3rem] relative">
+            <div className="absolute inset-x-0 h-1 bg-[#C9A227] shadow-[0_0_15px_#C9A227] animate-scan top-0" />
         </div>
 
-        {/* מסגרת ניאון זהובה/ירוקה */}
-        <div className={`relative w-[85%] aspect-[3/4] border-[15px] rounded-[4rem] transition-all duration-700 
-          ${status === 'locked' ? 'border-green-500 shadow-[0_0_100px_rgba(34,197,94,0.9)]' : 'border-[#C9A227]/50'}`}>
-          <div className="absolute inset-x-0 h-2 bg-green-400 shadow-[0_0_20px_#4ade80] animate-scan top-0" />
-        </div>
+        <button onClick={capture} className="mt-12 w-24 h-24 bg-[#C9A227] rounded-full border-8 border-black/30 flex items-center justify-center text-black">
+          <MapPin size={40} />
+        </button>
       </div>
-
-      {status === 'success' && (
-        <div className="absolute inset-0 z-50 bg-[#0b141a] flex flex-col items-center justify-center p-8 text-center">
-          <CheckCircle2 size={120} className="text-green-500 mb-8" />
-          <h1 className="text-5xl font-black text-white">המידע נשלח!</h1>
-          <button onClick={() => { setStatus('searching'); setCountdown(null); }} className="mt-10 bg-[#C9A227] text-black px-16 py-8 rounded-full font-black text-3xl uppercase">הבא בתור</button>
-        </div>
-      )}
     </div>
   );
 }
