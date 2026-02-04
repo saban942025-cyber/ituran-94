@@ -6,7 +6,7 @@ import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { SABAN_OCR_SCHEMA, SABAN_PROMPT } from "../../lib/ocr-brain";
 
 export async function processScan(base64Image: string, location: any, localDraft: any) {
-  // 1. רשימת מפתחות לגיבוי
+  // 1. איסוף המפתחות מה-Environment Variables
   const apiKeys = [
     process.env.GEMINI_API_KEY,
     process.env.GEMINI_API_KEY_2,
@@ -14,57 +14,73 @@ export async function processScan(base64Image: string, location: any, localDraft
   ].filter(Boolean) as string[];
 
   if (apiKeys.length === 0) {
-    return { success: false, error: "לא הוגדרו מפתחות API" };
+    return { success: false, error: "שגיאה: לא הוגדרו מפתחות API ב-Vercel" };
   }
 
-  let lastError = "";
+  // 2. ניקוי התמונה פעם אחת לפני הלולאה
+  // מוריד את כל מה שלפני ה-base64, (data:image/jpeg;base64,...)
+  const base64Data = base64Image.split(',')[1] || base64Image;
 
-  // 2. לולאת הדילוג (Failover)
+  let lastErrorMessage = "";
+
+  // 3. ניסיון סריקה עם כל מפתח עד להצלחה
   for (let i = 0; i < apiKeys.length; i++) {
     try {
       const genAI = new GoogleGenerativeAI(apiKeys[i]);
+      // מעבר למודל 1.5 Flash (הכי פחות נוטה לחסום בגלל עומס)
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-      const base64Clean = base64Image.replace(/^data:image\/(png|jpg|jpeg);base64,/, "");
-
-      // מעקף TypeScript: הגדרת הקונפיגורציה כ-any
-      const generationConfig: any = { 
+      // הגדרה כ-any כדי לעקוף את ה-Build
+      const genConfig: any = {
+        temperature: 0.1,
+        topP: 0.1,
+        topK: 16,
+        maxOutputTokens: 2048,
         responseMimeType: "application/json",
-        temperature: 0.1 
       };
 
       const result = await model.generateContent({
-        contents: [{ 
-          role: 'user', 
+        contents: [{
+          role: "user",
           parts: [
-            { inlineData: { data: base64Clean, mimeType: "image/jpeg" } },
-            { text: `${SABAN_PROMPT} \n מבנה JSON נדרש: ${JSON.stringify(SABAN_OCR_SCHEMA)} \n טיוטה: ${JSON.stringify(localDraft)}` }
+            { inlineData: { data: base64Data, mimeType: "image/jpeg" } },
+            { text: `${SABAN_PROMPT} \n החזר JSON בלבד לפי המבנה הזה: ${JSON.stringify(SABAN_OCR_SCHEMA)}` }
           ]
         }],
-        generationConfig
+        generationConfig: genConfig
       });
 
-      const responseText = result.response.text();
-      const data = JSON.parse(responseText.replace(/```json|```/g, '').trim());
+      const response = await result.response;
+      const text = response.text();
+      
+      // ניקוי תגיות במקרה שחזרו
+      const cleanJson = text.replace(/```json|```/g, "").trim();
+      const data = JSON.parse(cleanJson);
 
-      // שמירה ל-Firebase
+      // הצלחה! שומרים ומחזירים
       const docRef = await addDoc(collection(db, "processed_notes"), {
         ...data,
         driver: "חכמת",
         location: location || { lat: 0, lng: 0 },
         timestamp: serverTimestamp(),
-        usedKeyIndex: i + 1
+        keyUsed: i + 1
       });
 
       return { success: true, id: docRef.id, data };
 
     } catch (error: any) {
-      lastError = error.message || "Unknown Error";
-      console.error(`Attempt ${i+1} failed:`, lastError);
-      if (i === apiKeys.length - 1) break;
-      continue;
+      console.error(`Key ${i+1} failed:`, error.message);
+      lastErrorMessage = error.message;
+      // אם זו שגיאת בטיחות או פורמט, אין טעם להמשיך למפתח הבא באותה תמונה
+      if (lastErrorMessage.includes("SAFETY") || lastErrorMessage.includes("400")) {
+          break;
+      }
+      continue; // נסה את המפתח הבא
     }
   }
 
-  return { success: false, error: `כל המפתחות נכשלו: ${lastError}` };
+  return { 
+    success: false, 
+    error: `כל המפתחות נכשלו. סיבה אחרונה: ${lastErrorMessage}. נסה לצלם שוב באור חזק יותר.` 
+  };
 }
