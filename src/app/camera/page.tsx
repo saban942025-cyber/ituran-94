@@ -1,10 +1,11 @@
 'use client';
 import React, { useRef, useState, useEffect } from 'react';
 import Webcam from 'react-webcam';
-import { Camera, RefreshCw, CheckCircle } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { Camera, CheckCircle, AlertCircle, Maximize } from 'lucide-react';
+// איחוד כל האייקונים לשורה אחת כדי למנוע כפילויות
+import { Camera, RefreshCw, CheckCircle, AlertCircle, Maximize } from 'lucide-react';
+
 export default function SmartCamera() {
   const webcamRef = useRef<Webcam>(null);
   const [guideMessage, setGuideMessage] = useState("כוון את המצלמה לתעודה");
