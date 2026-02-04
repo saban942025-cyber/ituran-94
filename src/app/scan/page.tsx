@@ -1,116 +1,72 @@
 'use client';
-import React, { useRef, useState, useCallback, Suspense } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import Webcam from 'react-webcam';
-import { Camera, RefreshCw, CheckCircle, AlertCircle, ArrowRight } from 'lucide-react';
+import { db } from '@/lib/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { Camera, CheckCircle, AlertCircle, Maximize } from 'lucide-react';
 
-function HachmatScanner() {
+export default function SmartScanner() {
   const webcamRef = useRef<Webcam>(null);
-  const [instruction, setInstruction] = useState("כוון לתעודה בתוך המסגרת");
-  const [status, setStatus] = useState<'idle' | 'scanning' | 'success' | 'error'>('idle');
-  const [capturedImg, setCapturedImg] = useState<string | null>(null);
+  const [processed, setProcessed] = useState(false);
+  const [hint, setHint] = useState("מרכז את התעודה למסגרת");
 
-  // פונקציה ששולחת לג'ימיני לבדיקת איכות (Vision API)
-  const processImage = async (imageSrc: string) => {
-    setStatus('scanning');
-    setInstruction("ג'ימיני בודק את האיכות...");
-
-    try {
-      const response = await fetch('/api/scan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: imageSrc }),
-      });
+  // פונקציית הצילום האוטומטית כשהתמונה יציבה
+  const capture = async () => {
+    const imageSrc = webcamRef.current?.getScreenshot();
+    if (imageSrc) {
+      setProcessed(true);
+      setHint("סורק נתונים עם ג'ימיני...");
       
-      const data = await response.json();
-
-      if (data.isGood) {
-        setStatus('success');
-        setInstruction("צילום מעולה! הועלה לארכיון");
-        setCapturedImg(imageSrc);
-      } else {
-        setStatus('error');
-        setInstruction(data.advice || "התמונה מטושטשת, נסה שוב");
-        setTimeout(() => setStatus('idle'), 3000);
+      try {
+        await addDoc(collection(db, 'driver_scans'), {
+          driver: 'חכמת',
+          image: imageSrc,
+          timestamp: serverTimestamp(),
+          status: 'AI_ANALYZING'
+        });
+        setHint("נשלח בהצלחה לגליה! ✅");
+      } catch (e) {
+        setHint("שגיאה בשליחה, נסה שוב");
+        setProcessed(false);
       }
-    } catch (err) {
-      setInstruction("שגיאה בחיבור, נסה שוב");
-      setStatus('error');
     }
   };
 
-  const handleCapture = useCallback(() => {
-    const imageSrc = webcamRef.current?.getScreenshot();
-    if (imageSrc) processImage(imageSrc);
-  }, [webcamRef]);
-
   return (
-    <div className="fixed inset-0 bg-black flex flex-col font-sans" dir="rtl">
-      {/* Header */}
-      <div className="bg-[#202c33] p-4 flex items-center justify-between border-b border-gray-700">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-[#C9A227] rounded-full flex items-center justify-center font-bold text-black text-xs">ח</div>
-          <span className="text-white font-black text-sm uppercase">סורק חכמת</span>
-        </div>
-        <div className={`px-3 py-1 rounded-full text-[10px] font-bold ${status === 'success' ? 'bg-green-500 text-white' : 'bg-yellow-500 text-black animate-pulse'}`}>
-          {status === 'success' ? 'הסריקה אושרה' : 'ממתין לסריקה'}
-        </div>
+    <div className="min-h-screen bg-black text-white p-4 flex flex-col items-center" dir="rtl">
+      <div className="mb-4 text-center">
+        <h2 className="text-[#C9A227] font-black uppercase text-xs tracking-widest">Saban Smart Scan</h2>
+        <p className="text-lg font-bold">{hint}</p>
       </div>
 
-      {/* Camera View */}
-      <div className="relative flex-1 flex items-center justify-center bg-[#0b141a]">
-        {status === 'success' ? (
-          <img src={capturedImg!} className="w-[80%] h-[60%] object-cover rounded-xl border-4 border-green-500 shadow-2xl" />
-        ) : (
-          <>
-            <Webcam
-              audio={false}
-              ref={webcamRef}
-              screenshotFormat="image/jpeg"
-              videoConstraints={{ facingMode: "environment" }}
-              className="h-full w-full object-cover"
-            />
-            {/* מסגרת הכוונה לחכמת - גדולה וברורה */}
-            <div className="absolute border-4 border-dashed border-[#C9A227]/50 w-[85%] h-[65%] rounded-2xl shadow-[0_0_0_2000px_rgba(0,0,0,0.6)]">
-              <div className="absolute -top-10 left-0 right-0 text-center">
-                 <span className="bg-[#C9A227] text-black px-4 py-1 rounded-full text-xs font-black uppercase shadow-lg">יישר את הדף כאן</span>
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* הודעת הדרכה צפה */}
-        <div className={`absolute bottom-10 left-4 right-4 p-4 rounded-2xl flex items-center gap-3 shadow-2xl border transition-all ${
-          status === 'error' ? 'bg-red-900/90 border-red-500' : 'bg-[#202c33]/90 border-gray-700'
-        }`}>
-          {status === 'error' ? <AlertCircle className="text-white" /> : <CheckCircle className="text-[#C9A227]" />}
-          <p className="text-white text-sm font-bold flex-1">{instruction}</p>
+      <div className="relative w-full max-w-sm aspect-[3/4] overflow-hidden rounded-3xl border-4 border-gray-800">
+        <Webcam
+          audio={false}
+          ref={webcamRef}
+          screenshotFormat="image/jpeg"
+          videoConstraints={{ facingMode: "environment" }}
+          className="w-full h-full object-cover"
+        />
+        
+        {/* מסגרת הכוונה דיגיטלית */}
+        <div className="absolute inset-0 flex items-center justify-center p-8">
+          <div className={`w-full h-full border-2 ${processed ? 'border-green-500 shadow-[0_0_20px_green]' : 'border-[#C9A227] opacity-50'} rounded-lg transition-all`}>
+            {/* פינות המסגרת */}
+            <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-[#C9A227]"></div>
+            <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-[#C9A227]"></div>
+            <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-[#C9A227]"></div>
+            <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-[#C9A227]"></div>
+          </div>
         </div>
       </div>
 
-      {/* Footer Controls */}
-      <div className="h-28 bg-[#202c33] flex items-center justify-around px-8 border-t border-gray-700">
-        {status === 'success' ? (
-          <button onClick={() => window.location.reload()} className="flex items-center gap-2 text-[#C9A227] font-black uppercase text-xs">
-            <RefreshCw size={20} /> סרוק תעודה נוספת
-          </button>
-        ) : (
-          <button 
-            onClick={handleCapture}
-            disabled={status === 'scanning'}
-            className="w-20 h-20 bg-[#C9A227] rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(201,162,39,0.4)] active:scale-90 transition-all border-4 border-[#e0b52d]"
-          >
-            <Camera size={36} className="text-black" />
-          </button>
-        )}
-      </div>
+      <button 
+        onClick={capture}
+        disabled={processed}
+        className="mt-8 w-20 h-20 bg-[#C9A227] rounded-full flex items-center justify-center text-black shadow-2xl active:scale-90 transition-transform"
+      >
+        <Camera size={32} />
+      </button>
     </div>
-  );
-}
-
-export default function Page() {
-  return (
-    <Suspense fallback={<div className="bg-black h-screen flex items-center justify-center text-[#C9A227] font-black italic">טוען מצלמה חכמה...</div>}>
-      <HachmatScanner />
-    </Suspense>
   );
 }
