@@ -15,7 +15,8 @@
     "firebase": "^10.8.0",
     "leaflet": "^1.9.4",
     "react-leaflet": "^4.2.1",
-    "lucide-react": "^0.330.0"
+    "lucide-react": "^0.330.0",
+    "@google/generative-ai": "^0.2.1"
   },
   "devDependencies": {
     "typescript": "^5",
