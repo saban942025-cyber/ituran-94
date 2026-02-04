@@ -1,34 +1,41 @@
 import { NextResponse } from 'next/server';
-import { db } from '../../../lib/firebase'; // יוצאים 3 רמות החוצה
-import { ref, set, push, serverTimestamp } from 'firebase/database';
+import { db } from '@/lib/firebase';
+import { doc, setDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
-export async function POST(request: Request) {
+export async function POST(req: Request) {
   try {
-    const body = await request.text();
-    const [header, alertName, driver, plate, location, time, speed] = body.split('|');
+    const data = await req.json();
+    const { driver, alertName, location, time } = data;
 
-    if (header !== 'SABAN_ALERT') {
-      return NextResponse.json({ error: 'Invalid Format' }, { status: 400 });
-    }
-
-    // 1. עדכון סטטוס נהג
-    await set(ref(db, `team/${driver}`), {
+    // 1. עדכון סטטוס נהג ב-Firestore (שימוש ב-doc ו-setDoc במקום ref)
+    const driverRef = doc(db, 'team', driver);
+    await setDoc(driverRef, {
       status: alertName,
-      location,
-      time,
-      lastUpdate: serverTimestamp()
-    });
+      location: location,
+      lastUpdate: time || new Date().toISOString(),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
 
-    // 2. רישום הודעה בהיסטוריה
-    await push(ref(db, 'internal_messages'), {
+    // 2. רישום לוג היסטורי לצורך הצלבה עתידית מול תעודות משלוח
+    const logsRef = collection(db, 'ituran_logs');
+    await addDoc(logsRef, {
       driver,
       alertName,
-      text: `התראה: ${alertName} מרכב ${plate}`,
-      timestamp: serverTimestamp()
+      location,
+      eventTime: time,
+      createdAt: serverTimestamp()
     });
 
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    return NextResponse.json({ error: 'Server Error' }, { status: 500 });
+    return NextResponse.json({ 
+      success: true, 
+      message: `סטטוס נהג ${driver} עודכן ל-${alertName} ב-Firestore` 
+    });
+
+  } catch (error: any) {
+    console.error('Ituran Bridge Error:', error);
+    return NextResponse.json({ 
+      success: false, 
+      error: error.message 
+    }, { status: 500 });
   }
 }
