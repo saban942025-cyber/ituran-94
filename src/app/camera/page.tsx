@@ -1,127 +1,110 @@
 'use client';
-import React, { useRef, useState, useCallback, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import Webcam from 'react-webcam';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { Camera, RefreshCw, Maximize2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Camera, RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react';
 
-export default function SmartCamera() {
+export default function SmartScanner() {
   const webcamRef = useRef<Webcam>(null);
   const [img, setImg] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState<'aligning' | 'captured' | 'sent'>('aligning');
-  const [hint, setHint] = useState("מזהה תעודה... החזק יציב");
+  const [status, setStatus] = useState<'aligning' | 'scanning' | 'success'>('aligning');
+  const [guideText, setGuideText] = useState("הכנס את התעודה למסגרת");
 
-  // אפקט להנחיות משתנות (מדמה זיהוי פינות)
+  // מנגנון הנחיות אוטומטי לחכמת
   useEffect(() => {
     if (status === 'aligning') {
-      const hints = [
-        "מרכז את התעודה למסגרת",
-        "התקרב מעט...",
-        "יציב... עוד רגע...",
-        "מחפש פינות מסמך..."
-      ];
-      let i = 0;
-      const interval = setInterval(() => {
-        setHint(hints[i % hints.length]);
-        i++;
-      }, 3000);
-      return () => clearInterval(interval);
+      const timer = setTimeout(() => setGuideText("יציב... אל תזוז"), 3000);
+      return () => clearTimeout(timer);
     }
   }, [status]);
 
-  const capture = useCallback(async () => {
+  const handleCapture = async () => {
+    setStatus('scanning');
+    setGuideText("סורק נתונים...");
+    
     const imageSrc = webcamRef.current?.getScreenshot();
     if (imageSrc) {
-      setImg(imageSrc);
-      setStatus('captured');
-      setHint("תעודה נתפסה! שולח לבדיקה...");
-      setLoading(true);
-      
       try {
         await addDoc(collection(db, 'driver_scans'), {
           driver: 'חכמת',
           image: imageSrc,
           timestamp: serverTimestamp(),
-          status: 'pending'
+          status: 'AI_ANALYSIS_REQUIRED'
         });
-        setStatus('sent');
-        setHint("נשלח בהצלחה לגליה! ✅");
+        setImg(imageSrc);
+        setStatus('success');
+        setGuideText("נשלח בהצלחה!");
       } catch (e) {
-        setHint("שגיאה בשליחה. נסה שוב.");
+        setGuideText("תקלה! נסה שוב");
         setStatus('aligning');
       }
-      setLoading(false);
     }
-  }, [webcamRef]);
+  };
 
   return (
-    <div className="min-h-screen bg-[#0b141a] text-white flex flex-col items-center p-6" dir="rtl">
-      {/* Status Bar */}
-      <div className="w-full max-w-sm mb-6 flex items-center justify-between bg-[#1c272d] p-3 rounded-2xl border border-gray-800">
-        <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${status === 'aligning' ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`} />
-          <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Saban AI Live</span>
-        </div>
-        <span className="text-xs font-bold text-[#C9A227]">{hint}</span>
+    <div className="relative min-h-screen bg-black overflow-hidden font-sans">
+      {/* המצלמה - תופסת את כל המסך */}
+      <div className="absolute inset-0 z-0">
+        <Webcam
+          audio={false}
+          ref={webcamRef}
+          screenshotFormat="image/jpeg"
+          videoConstraints={{ facingMode: "environment" }}
+          className="w-full h-full object-cover"
+        />
       </div>
 
-      {/* Camera Viewport */}
-      <div className="relative w-full max-w-sm aspect-[3/4] rounded-[2.5rem] overflow-hidden border-4 border-[#202c33] shadow-2xl bg-black">
-        {!img ? (
-          <>
-            <Webcam
-              audio={false}
-              ref={webcamRef}
-              screenshotFormat="image/jpeg"
-              videoConstraints={{ facingMode: "environment" }}
-              className="w-full h-full object-cover opacity-80"
-            />
-            {/* מסגרת "תפיסת פינות" אקטיבית */}
-            <div className="absolute inset-0 flex items-center justify-center p-10">
-              <div className="w-full h-full border-2 border-[#C9A227]/30 rounded-xl relative overflow-hidden">
-                {/* קו סריקה לייזר (מ globals.css) */}
-                <div className="scanner-line"></div>
-                
-                {/* פינות "תופסות" */}
-                <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-[#C9A227] shadow-[0_0_15px_rgba(201,162,39,0.5)]"></div>
-                <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-[#C9A227]"></div>
-                <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-[#C9A227]"></div>
-                <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-[#C9A227]"></div>
-              </div>
-            </div>
-          </>
-        ) : (
-          <div className="relative h-full w-full">
-            <img src={img} className="w-full h-full object-cover" alt="captured" />
-            {status === 'sent' && (
-               <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center">
-                  <CheckCircle2 size={60} className="text-green-500 mb-2" />
-                  <span className="font-black">התעודה בארכיון</span>
-               </div>
-            )}
+      {/* שכבת ההנחיות והמסגרת */}
+      <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-6 bg-black/20">
+        
+        {/* טקסט הנחיות מרכזי - בולט בכל תנאי תאורה */}
+        <div className="absolute top-1/4 transform -translate-y-1/2 w-full px-4 text-center">
+          <div className="inline-block bg-black/60 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/20 shadow-2xl">
+            <p className={`text-xl font-black uppercase tracking-tight ${status === 'success' ? 'text-green-400' : 'text-[#C9A227]'}`}>
+              {guideText}
+            </p>
           </div>
-        )}
-      </div>
+        </div>
 
-      {/* Control Button */}
-      <div className="mt-10">
-        {status === 'aligning' ? (
-          <button 
-            onClick={capture}
-            className="w-24 h-24 bg-[#C9A227] rounded-full flex items-center justify-center text-black shadow-[0_0_30px_rgba(201,162,39,0.3)] active:scale-90 transition-all border-8 border-black/20"
-          >
-            <Camera size={36} />
-          </button>
-        ) : (
-          <button 
-            onClick={() => {setImg(null); setStatus('aligning');}}
-            className="flex items-center gap-3 bg-[#202c33] px-8 py-4 rounded-2xl border border-gray-700 font-bold text-sm"
-          >
-            <RefreshCw size={18} /> סרוק תעודה נוספת
-          </button>
-        )}
+        {/* מסגרת הסריקה - "חכמה" */}
+        <div className={`relative w-full aspect-[3/4] max-w-sm rounded-[2rem] border-4 transition-all duration-500 
+          ${status === 'success' ? 'border-green-500 shadow-[0_0_40px_rgba(34,197,94,0.6)]' : 'border-[#C9A227]/70 shadow-[0_0_20px_rgba(201,162,39,0.3)]'}`}>
+          
+          {/* קו לייזר סורק - מופיע רק בזמן "סריקה" */}
+          {status === 'scanning' && (
+            <div className="absolute inset-x-0 h-1 bg-[#C9A227] shadow-[0_0_15px_#C9A227] animate-scan z-20"></div>
+          )}
+
+          {/* פינות המסגרת */}
+          <div className="absolute -top-1 -left-1 w-12 h-12 border-t-8 border-l-8 border-[#C9A227] rounded-tl-3xl"></div>
+          <div className="absolute -top-1 -right-1 w-12 h-12 border-t-8 border-r-8 border-[#C9A227] rounded-tr-3xl"></div>
+          <div className="absolute -bottom-1 -left-1 w-12 h-12 border-b-8 border-l-8 border-[#C9A227] rounded-bl-3xl"></div>
+          <div className="absolute -bottom-1 -right-1 w-12 h-12 border-b-8 border-r-8 border-[#C9A227] rounded-br-3xl"></div>
+        </div>
+
+        {/* כפתור צילום גדול למטה */}
+        <div className="absolute bottom-12 w-full flex justify-center">
+          {status !== 'success' ? (
+            <button 
+              onClick={handleCapture}
+              className="w-20 h-20 bg-[#C9A227] rounded-full border-8 border-black/30 flex items-center justify-center text-black shadow-2xl active:scale-90 transition-transform"
+            >
+              <Camera size={36} />
+            </button>
+          ) : (
+            <button 
+              onClick={() => { setStatus('aligning'); setImg(null); setGuideText("הכנס את התעודה למסגרת"); }}
+              className="bg-green-600 px-8 py-4 rounded-2xl font-black text-white flex items-center gap-2 shadow-xl"
+            >
+              <RefreshCw size={20} /> תעודה הבאה
+            </button>
+          )}
+        </div>
       </div>
+      
+      {/* לוגו סבן בפינה */}
+      <div className="absolute bottom-4 right-6 z-20 opacity-30 text-white font-black italic">SABAN 94</div>
     </div>
   );
 }
