@@ -14,33 +14,33 @@ export async function processScan(base64Image: string, location: any, localDraft
   if (keys.length === 0) return { success: false, error: "מפתחות API לא מוגדרים" };
 
   const base64Data = base64Image.split(',')[1] || base64Image;
-  let lastError = "";
 
   for (let key of keys) {
     try {
       const genAI = new GoogleGenerativeAI(key!);
       
-      // שינוי קריטי: בגרסאות ישנות המודל נקרא לעיתים gemini-pro 
-      // אבל אנחנו ננסה לגשת ל-gemini-1.5-flash בצורה שתעקוף את ה-404
-      const model = genAI.getGenerativeModel({ 
-        model: "gemini-1.5-flash",
-      });
+      // שינוי קריטי: משתמשים במודל הישן שנתמך ב-V1
+      const model = genAI.getGenerativeModel({ model: "gemini-pro-vision" });
 
-      // אנחנו שולחים בקשה בסיסית ביותר ללא הגדרות config מתקדמות
+      const prompt = `נתח את תעודת המשלוח הזו. 
+      השווה לטיוטה: ${JSON.stringify(localDraft)}
+      חובה להחזיר JSON בלבד עם המבנה: 
+      {"invoiceNumber": "string", "items": [], "signatureFound": boolean}`;
+
       const result = await model.generateContent([
+        prompt,
         {
           inlineData: {
             data: base64Data,
             mimeType: "image/jpeg"
           }
-        },
-        {
-          text: `נתח תעודת משלוח. החזר JSON בלבד: {"invoiceNumber": "string", "items": [], "signatureFound": true}`
         }
       ]);
 
       const response = await result.response;
       const text = response.text();
+      
+      // חילוץ JSON פשוט
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (!jsonMatch) throw new Error("JSON_NOT_FOUND");
       
@@ -50,22 +50,20 @@ export async function processScan(base64Image: string, location: any, localDraft
         ...data,
         driver: "חכמת",
         location,
-        timestamp: serverTimestamp()
+        timestamp: serverTimestamp(),
+        model_used: "gemini-pro-vision"
       });
 
       return { success: true, data };
 
     } catch (err: any) {
-      // אם השגיאה היא 404, ננסה להחליף את שם המודל לגרסה היציבה הישנה יותר
-      console.error(`Attempt with key failed:`, err.message);
-      lastError = err.message;
-      
-      if (lastError.includes("404")) {
-         lastError = "המודל gemini-1.5-flash לא מזוהה. נסה לעדכן את ה-SDK.";
+      console.error("Attempt failed:", err.message);
+      if (err.message.includes("404")) {
+          // אם גם זה לא עובד, כנראה שה-SDK ממש דורש עדכון
+          return { success: false, error: "גרסת ה-SDK ישנה מדי. אנא הרץ npm install @google/generative-ai@latest" };
       }
       continue;
     }
   }
-
-  return { success: false, error: lastError };
+  return { success: false, error: "תקלה בסריקה" };
 }
