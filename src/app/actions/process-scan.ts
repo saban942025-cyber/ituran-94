@@ -8,9 +8,18 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 export async function processScan(base64Image: string, location: {lat: number, lng: number}) {
   try {
     // שימוש במודל 1.5 Pro שתומך ב-JSON Mode
-    const model = genAI.getGenerativeModel({ 
-      model: "gemini-1.5-pro",
-      // @ts-ignore - התעלמות מבדיקת גרסה ישנה של ה-SDK
+const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-pro"
+    });
+
+    const imageData = base64Image.split(',')[1];
+
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts: [
+        { inlineData: { data: imageData, mimeType: "image/jpeg" } },
+        { text: `${SABAN_PROMPT} \n החזר פלט לפי המבנה הבא: ${JSON.stringify(SABAN_OCR_SCHEMA)}` }
+      ]}],
+      // @ts-ignore
       generationConfig: {
         responseMimeType: "application/json",
       }
