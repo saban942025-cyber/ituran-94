@@ -5,51 +5,61 @@ import { db } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
 export async function processScan(base64Image: string, location: any, localDraft: any) {
-  const keys = [
+  const apiKeys = [
     process.env.GEMINI_API_KEY,
     process.env.GEMINI_API_KEY_2,
     process.env.GEMINI_API_KEY_3
   ].filter(Boolean) as string[];
 
-  if (keys.length === 0) return { success: false, error: "חסר מפתח API" };
+  if (apiKeys.length === 0) {
+    return { success: false, error: "לא הוגדרו מפתחות API" };
+  }
 
-  // ניקוי ה-Base64
-  const base64Data = base64Image.split(',')[1] || base64Image;
+  const base64Data = base64Image.replace(/^data:image\/(png|jpg|jpeg);base64,/, "");
+  let lastError = "";
 
-  for (let i = 0; i < keys.length; i++) {
+  for (let i = 0; i < apiKeys.length; i++) {
     try {
-      const genAI = new GoogleGenerativeAI(keys[i]);
-      // עכשיו כשה-SDK מעודכן, המודל הזה יעבוד ב-100%
+      const genAI = new GoogleGenerativeAI(apiKeys[i]);
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-      const result = await model.generateContent([
-        {
-          inlineData: {
-            data: base64Data,
-            mimeType: "image/jpeg"
-          }
-        },
-        { text: "Analyze delivery note. Return ONLY JSON: {invoiceNumber, items: [], signatureFound: boolean}" }
-      ]);
+      // עקיפת שגיאת SDK ישנה עם any
+      const generationConfig: any = { temperature: 0.1 };
 
-      const text = result.response.text();
+      const result = await model.generateContent({
+        contents: [{
+          role: 'user',
+          parts: [
+            { inlineData: { data: base64Data, mimeType: "image/jpeg" } },
+            { text: `Analyze invoice. Return JSON ONLY: {"invoiceNumber": "string", "hasChanges": boolean}` }
+          ]
+        }],
+        generationConfig
+      });
+
+      const response = await result.response;
+      const text = response.text();
       const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error("JSON_MISSING");
       
+      if (!jsonMatch) throw new Error("JSON_NOT_FOUND");
       const data = JSON.parse(jsonMatch[0]);
 
       await addDoc(collection(db, "processed_notes"), {
         ...data,
         driver: "חכמת",
         location,
-        timestamp: serverTimestamp()
+        timestamp: serverTimestamp(),
+        keyIndex: i + 1
       });
 
       return { success: true, data };
 
     } catch (err: any) {
-      console.error(`מפתח ${i+1} נכשל:`, err.message);
-      if (i === keys.length - 1) return { success: false, error: "ג'ימיני לא זיהה, נסה שוב" };
+      lastError = err.message;
+      console.error(`Key ${i+1} failed:`, lastError);
+      continue;
     }
   }
+
+  return { success: false, error: `כל המפתחות נכשלו: ${lastError}` };
 }
