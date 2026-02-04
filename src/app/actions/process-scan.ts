@@ -10,6 +10,7 @@ export async function processScan(base64Image: string, location: {lat: number, l
     // שימוש במודל 1.5 Pro שתומך ב-JSON Mode
     const model = genAI.getGenerativeModel({ 
       model: "gemini-1.5-pro",
+      // @ts-ignore - התעלמות מבדיקת גרסה ישנה של ה-SDK
       generationConfig: {
         responseMimeType: "application/json",
       }
