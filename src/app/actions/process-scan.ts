@@ -2,8 +2,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
-import { SABAN_OCR_SCHEMA, SABAN_PROMPT } from "@/lib/ocr-brain";
-
+import { SABAN_OCR_SCHEMA, SABAN_PROMPT } from "../../lib/ocr-brain";
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 export async function processScan(base64Image: string, location: {lat: number, lng: number}) {
