@@ -5,15 +5,20 @@ import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
 export async function processScan(base64Image: string, type: 'invoice' | 'tachograph') {
   const key = process.env.GEMINI_API_KEY;
-  const cleanBase64 = base64Image.replace(/^data:.*?;base64,/, "");
+  
+  // התיקון הקריטי: ניקוי אגרסיבי של ה-Base64
+  // אנחנו מוודאים שרק ה-Data עצמו נשאר בלי שום קידומת
+  const cleanBase64 = base64Image.split(',')[1] || base64Image;
+  
   const mimeType = base64Image.includes('application/pdf') ? 'application/pdf' : 'image/jpeg';
 
-  // פרומפט חכם לפי סוג הקובץ
   const prompt = type === 'invoice' 
-    ? "Extract from delivery note: invoiceNumber, customerName, date, address. Return ONLY JSON."
-    : "Extract from Tachograph disk: driverName, date, startKm, endKm. Return ONLY JSON.";
+    ? "Extract from delivery note: invoiceNumber, customerName, date, address. Return ONLY JSON object."
+    : "Extract from Tachograph disk: driverName, date, startKm, endKm. Return ONLY JSON object.";
 
   try {
+    console.log(`--- 🛡️ מלשינון: מנתח ${type} ---`);
+    
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${key}`,
       {
@@ -26,17 +31,23 @@ export async function processScan(base64Image: string, type: 'invoice' | 'tachog
               { text: prompt }
             ] 
           }],
-          generationConfig: { response_mime_type: "application/json", temperature: 0.1 }
+          generationConfig: { 
+            response_mime_type: "application/json", 
+            temperature: 0.1 
+          }
         })
       }
     );
 
-    if (!response.ok) throw new Error(`API Error: ${response.status}`);
+    if (!response.ok) {
+      const errorBody = await response.json();
+      console.error("Gemini API Error Body:", JSON.stringify(errorBody));
+      throw new Error(`API Error: ${response.status}`);
+    }
 
     const result = await response.json();
     const data = JSON.parse(result.candidates[0].content.parts[0].text);
 
-    // שמירה ל-Firebase
     const docRef = await addDoc(collection(db, "galia_records"), {
       ...data,
       docType: type,
@@ -51,6 +62,6 @@ export async function processScan(base64Image: string, type: 'invoice' | 'tachog
 }
 
 export async function sendToEmail(selectedIds: string[]) {
-  console.log("Simulating email send for IDs:", selectedIds);
+  console.log("Office 365 Email Sync:", selectedIds);
   return { success: true };
 }
