@@ -4,59 +4,87 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { db } from "@/lib/firebase"; 
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
+// מערך פנימי שיחזיק את המפתחות ה"שרופים" בזמן הריצה של השרת
+let blacklistedKeys = new Set<string>();
+
 export async function processScan(base64Image: string, location: any, localDraft: any) {
-  const keys = [
+  // 1. איסוף מפתחות וסינון מפתחות שכשלו קשות בעבר
+  let allKeys = [
     process.env.GEMINI_API_KEY,
     process.env.GEMINI_API_KEY_2,
     process.env.GEMINI_API_KEY_3
   ].filter(Boolean) as string[];
 
-  console.log(`--- 🛡️ מלשינון: נמצאו ${keys.length} מפתחות ---`);
+  // סינון מפתחות מה"רשימה השחורה"
+  const activeKeys = allKeys.filter(k => !blacklistedKeys.has(k));
 
-  if (keys.length === 0) return { success: false, error: "חסר מפתח API" };
+  console.log(`--- 🛡️ מלשינון ח. סבן: מנתח עם ${activeKeys.length}/${allKeys.length} מפתחות פעילים ---`);
 
-  // 🔥 התיקון הקריטי: ניקוי ה-Header של ה-Base64 מכל סוג קובץ
+  if (activeKeys.length === 0) {
+    return { success: false, error: "כל המפתחות נכשלו. רמי, תבדוק את ה-API Keys ב-Vercel!" };
+  }
+
+  // 2. הכנת הקובץ (ניקוי Header וזיהוי סוג)
   const cleanBase64 = base64Image.replace(/^data:.*?;base64,/, "");
-  
-  // 🔥 זיהוי ה-MIME הנכון לפי תוכן המחרוזת
   const mimeType = base64Image.includes('application/pdf') ? 'application/pdf' : 'image/jpeg';
+  
+  console.log(`📸 מלשינון: קובץ ${mimeType} בגודל ${(cleanBase64.length / 1024).toFixed(2)} KB`);
 
-  console.log(`📸 מלשינון: מנתח קובץ מסוג ${mimeType}, גודל: ${(cleanBase64.length / 1024).toFixed(2)} KB`);
+  let lastError = "";
 
-  for (let i = 0; i < keys.length; i++) {
+  // 3. לולאת הניסיונות
+  for (let i = 0; i < activeKeys.length; i++) {
+    const currentKey = activeKeys[i];
+    const keyId = `Key_${i + 1}_${currentKey.substring(0, 5)}`;
+
     try {
-      const genAI = new GoogleGenerativeAI(keys[i]);
-      // שימוש ב-v1beta לתמיכה מלאה ב-1.5 פלאש
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }, { apiVersion: 'v1beta' });
+      console.log(`🔄 מלשינון: מנסה את ${keyId}...`);
+      
+      const genAI = new GoogleGenerativeAI(currentKey);
+      // שימוש בגרסה יציבה
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
       const result = await model.generateContent([
-        { inlineData: { data: cleanBase64, mimeType: mimeType } },
-        { text: `Analyze this document for Saban 94. 
-          Return ONLY JSON:
-          If Invoice: {"type": "invoice", "invoiceNumber": "string", "customerName": "string"}
-          If Tachograph Disk: {"type": "disk", "driverName": "string"}
-          JSON ONLY.` }
+        { inlineData: { data: cleanBase64, mimeType } },
+        { text: "Analyze document. Return ONLY JSON: {invoiceNumber: string, customerName: string, type: 'invoice'|'disk'}" }
       ]);
 
-      const text = result.response.text();
-      console.log(`✅ מלשינון: מפתח ${i+1} הצליח!`);
+      const response = await result.response;
+      const text = response.text();
+      
+      console.log(`✅ מלשינון: ${keyId} הצליח!`);
 
       const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error("JSON_NOT_FOUND");
+      if (!jsonMatch) throw new Error("JSON_MISSING");
+      
       const data = JSON.parse(jsonMatch[0]);
 
+      // שמירה ל-Firebase
       await addDoc(collection(db, "processed_notes"), {
         ...data,
-        location: location || { lat: 0, lng: 0 },
-        source: localDraft?.source || "unknown",
-        timestamp: serverTimestamp()
+        timestamp: serverTimestamp(),
+        source: localDraft?.source || "OFFICE",
+        meta: { keyUsed: keyId }
       });
 
       return { success: true, data };
 
     } catch (err: any) {
-      console.warn(`⚠️ מלשינון: מפתח ${i+1} נכשל: ${err.message}`);
-      if (i === keys.length - 1) return { success: false, error: err.message };
+      lastError = err.message;
+      console.error(`⚠️ מלשינון: ${keyId} נכשל. סיבה: ${lastError}`);
+
+      // מלשינון חזק: אם המפתח פגום (400/403/401), נכניס אותו לרשימה השחורה
+      if (lastError.includes("API_KEY_INVALID") || lastError.includes("403") || lastError.includes("401")) {
+        console.error(`🚫 מלשינון: שורף את ${keyId}! מפתח לא תקין.`);
+        blacklistedKeys.add(currentKey);
+      }
+
+      // אם הגענו למפתח האחרון וגם הוא נכשל
+      if (i === activeKeys.length - 1) {
+        console.error("💀 מלשינון סופי: אין יותר מפתחות לנסות.");
+      }
     }
   }
+
+  return { success: false, error: `כל המפתחות נכשלו: ${lastError}` };
 }
