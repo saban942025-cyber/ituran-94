@@ -3,19 +3,14 @@
 import { db } from "@/lib/firebase"; 
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
-// הגדלת מגבלת הנפח ל-10MB בשרת
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '10mb',
-    },
-  },
-};
-
-export async function processScan(base64Image: string, location: any, localDraft: any) {
+export async function processScan(base64Image: string, type: 'invoice' | 'tachograph') {
   const key = process.env.GEMINI_API_KEY;
   const cleanBase64 = base64Image.replace(/^data:.*?;base64,/, "");
   const mimeType = base64Image.includes('application/pdf') ? 'application/pdf' : 'image/jpeg';
+
+  const prompt = type === 'invoice' 
+    ? "Extract from delivery note: invoiceNumber, customerName, date, address. Return ONLY JSON."
+    : "Extract from Tachograph disk: driverName, date, startKm, endKm. Return ONLY JSON.";
 
   try {
     const response = await fetch(
@@ -24,33 +19,29 @@ export async function processScan(base64Image: string, location: any, localDraft
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{
-            parts: [
-              { inline_data: { mime_type: mimeType, data: cleanBase64 } },
-              { text: "Extract exactly these 3 fields: invoiceNumber, customerName, invoiceDate. Return ONLY JSON." }
-            ]
-          }],
-          generationConfig: { temperature: 0.1 }
+          contents: [{ parts: [{ inline_data: { mime_type: mimeType, data: cleanBase64 } }, { text: prompt }] }],
+          generationConfig: { response_mime_type: "application/json", temperature: 0.1 }
         })
       }
     );
 
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    
     const result = await response.json();
-    const rawText = result.candidates[0].content.parts[0].text;
-    const data = JSON.parse(rawText.match(/\{[\s\S]*\}/)[0]);
+    const data = JSON.parse(result.candidates[0].content.parts[0].text);
 
-    // שמירה ל-Firebase כגשר נתונים
-    const docRef = await addDoc(collection(db, "processed_notes"), {
+    const docRef = await addDoc(collection(db, "galia_records"), {
       ...data,
+      docType: type,
       timestamp: serverTimestamp(),
-      source: "SABAN_BRIDGE_SYNC"
     });
 
-    return { success: true, id: docRef.id, data };
-  } catch (err: any) {
-    console.error("Analysis error:", err.message);
-    return { success: false, error: err.message };
+    return { success: true, id: docRef.id, data: { ...data, docType: type } };
+  } catch (err) {
+    return { success: false, error: "Analysis failed" };
   }
+}
+
+// פונקציית שליחה למייל (מדמה שליחה דרך 365)
+export async function sendToEmail(selectedIds: any[]) {
+  console.log("Sending records to Office 365 Mail:", selectedIds);
+  return { success: true };
 }
