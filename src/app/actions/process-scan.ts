@@ -3,32 +3,39 @@
 import { db } from "@/lib/firebase"; 
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
-// רשימה שחורה זמנית למפתחות שכשלו (נמחקת בריסטרט של השרת ב-Vercel)
+// הגדלת מגבלת הנפח ל-Server Actions ל-10MB ליתר ביטחון
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb',
+    },
+  },
+};
+
+// רשימה שחורה זמנית למפתחות API תקולים
 let blacklistedKeys = new Set<string>();
 
 export async function processScan(base64Image: string, location: any, localDraft: any) {
-  // 1. איסוף מפתחות API מה-Environment
+  // 1. ריכוז מפתחות API מה-Environment
   const allKeys = [
     process.env.GEMINI_API_KEY,
     process.env.GEMINI_API_KEY_2,
     process.env.GEMINI_API_KEY_3
   ].filter(Boolean) as string[];
 
-  // סינון מפתחות פגומים
+  // סינון מפתחות שכשלו בעבר
   const activeKeys = allKeys.filter(k => !blacklistedKeys.has(k));
 
-  console.log(`--- 🛡️ מלשינון ח. סבן: חילוץ נתוני ליבה (פעילים: ${activeKeys.length}/${allKeys.length}) ---`);
+  console.log(`--- 🛡️ מלשינון ח. סבן: חילוץ נתוני תעודה (פעילים: ${activeKeys.length}/${allKeys.length}) ---`);
 
   if (activeKeys.length === 0) {
     return { success: false, error: "אין מפתחות API תקינים. רמי, בדוק הגדרות ב-Vercel." };
   }
 
-  // 2. ניקוי ה-Base64 (הסרת ה-Header שגורם לשגיאות 400)
+  // 2. ניקוי ה-Base64 (הסרת ה-Data Header)
   const cleanBase64 = base64Image.replace(/^data:.*?;base64,/, "");
   const mimeType = base64Image.includes('application/pdf') ? 'application/pdf' : 'image/jpeg';
   
-  console.log(`📸 מלשינון: מנתח קובץ ${mimeType} עבור OneDrive & Drive Sync`);
-
   let lastError = "";
 
   // 3. לולאת הניסיונות (Failover)
@@ -48,7 +55,7 @@ export async function processScan(base64Image: string, location: any, localDraft
             contents: [{
               parts: [
                 { inline_data: { mime_type: mimeType, data: cleanBase64 } },
-                { text: `Extract only the following fields from this delivery note:
+                { text: `Extract exactly 3 fields from this document:
                   1. Invoice Number (מספר תעודה)
                   2. Customer Name (שם לקוח)
                   3. Date (תאריך תעודה)
@@ -59,12 +66,12 @@ export async function processScan(base64Image: string, location: any, localDraft
                     "customerName": "string",
                     "invoiceDate": "string"
                   }
-                  No markdown, no extra text.` 
+                  Do not include markdown or any other text.` 
                 }
               ]
             }],
             generationConfig: {
-              temperature: 0.1, // דיוק מקסימלי
+              temperature: 0.1, // דיוק מקסימלי לחילוץ נתונים
               response_mime_type: "application/json"
             }
           })
@@ -78,24 +85,25 @@ export async function processScan(base64Image: string, location: any, localDraft
 
       const result = await response.json();
       
-      // שליפת הטקסט הנקי
+      // שליפת הטקסט וניקוי במידת הצורך
       const rawText = result.candidates[0].content.parts[0].text;
       const jsonMatch = rawText.match(/\{[\s\S]*\}/);
       
       if (!jsonMatch) throw new Error("JSON_NOT_FOUND");
       
       const data = JSON.parse(jsonMatch[0]);
-      console.log(`✅ מלשינון: נתונים חולצו בהצלחה עבור ${data.customerName}`);
+      console.log(`✅ מלשינון: הנתונים חולצו עבור לקוח: ${data.customerName}`);
 
-      // 4. שמירה ל-Firebase (כאן גליה תראה את זה בטבלה אונליין)
+      // 4. שמירה ל-Firebase (כאן גליה תראה את זה בטבלה)
       const docRef = await addDoc(collection(db, "processed_notes"), {
         ...data,
         timestamp: serverTimestamp(),
         location: location || { lat: 0, lng: 0 },
-        source: "GALIA_OFFICE_SYNC",
-        syncStatus: {
+        source: "GALIA_SYNC_PROCESS",
+        // הכנה לגיבוי ענן כפול
+        cloudStorage: {
           googleDrive: "PENDING",
-          oneDrive: "PENDING"
+          oneDrive365: "PENDING"
         }
       });
 
@@ -105,14 +113,15 @@ export async function processScan(base64Image: string, location: any, localDraft
       lastError = err.message;
       console.error(`⚠️ מלשינון: ${keyTag} נכשל. סיבה: ${lastError}`);
 
-      // שריפת מפתח במידה והוא לא מורשה/פגום
+      // שריפת מפתח במידה והוא לא מורשה או פגום
       if (lastError.includes("403") || lastError.includes("API_KEY_INVALID") || lastError.includes("401")) {
+        console.warn(`🚫 מלשינון: מוציא את ${keyTag} מהסבב.`);
         blacklistedKeys.add(key);
       }
       
-      continue; // ניסיון עם המפתח הבא
+      continue; // ניסיון עם המפתח הבא ברשימה
     }
   }
 
-  return { success: false, error: `כל המפתחות נכשלו: ${lastError}` };
+  return { success: false, error: `כל הניסיונות נכשלו: ${lastError}` };
 }
