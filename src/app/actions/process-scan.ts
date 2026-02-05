@@ -14,7 +14,7 @@ export async function processScan(base64Image: string, location: any, localDraft
 
   const activeKeys = allKeys.filter(k => !blacklistedKeys.has(k));
 
-  console.log(`--- 🛡️ מלשינון ח. סבן: ניסיון תיקון REST (פעילים: ${activeKeys.length}) ---`);
+  console.log(`--- 🛡️ מלשינון ח. סבן: פתרון סופי ללא Config (פעילים: ${activeKeys.length}) ---`);
 
   if (activeKeys.length === 0) return { success: false, error: "אין מפתחות תקינים" };
 
@@ -26,7 +26,7 @@ export async function processScan(base64Image: string, location: any, localDraft
     const keyTag = `Key_${i + 1}`;
 
     try {
-      console.log(`🔄 מלשינון: שולח ל-v1 עם שמות שדות מתוקנים...`);
+      console.log(`🔄 מלשינון: שולח ל-v1 בשיטה הבטוחה ביותר...`);
 
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${key}`,
@@ -37,13 +37,10 @@ export async function processScan(base64Image: string, location: any, localDraft
             contents: [{
               parts: [
                 { inline_data: { mime_type: mimeType, data: cleanBase64 } },
-                { text: "Analyze document. Return ONLY JSON: {invoiceNumber, customerName, type}" }
+                { text: "Analyze document. Return ONLY a JSON object: {invoiceNumber, customerName, type}. No intro, no markdown." }
               ]
             }],
-            generationConfig: {
-              response_mime_type: "application/json", // תיקון: snake_case
-              temperature: 0.1
-            }
+            // הסרנו את ה-generationConfig שגרם לבעיות ב-REST
           })
         }
       );
@@ -54,12 +51,15 @@ export async function processScan(base64Image: string, location: any, localDraft
       }
 
       const result = await response.json();
-      
-      // שליפת הטקסט מהמבנה של גוגל
       const textResponse = result.candidates[0].content.parts[0].text;
-      console.log(`✅ מלשינון: הצלחנו! קיבלנו תשובה.`);
+      
+      console.log(`✅ מלשינון: התקבלה תשובה טקסטואלית, מנקה JSON...`);
 
-      const data = JSON.parse(textResponse);
+      // ניקוי התשובה מסימני Markdown אם ג'ימיני הוסיף אותם
+      const jsonMatch = textResponse.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error("לא נמצא JSON בתשובה");
+      
+      const data = JSON.parse(jsonMatch[0]);
 
       await addDoc(collection(db, "processed_notes"), {
         ...data,
@@ -80,5 +80,5 @@ export async function processScan(base64Image: string, location: any, localDraft
     }
   }
 
-  return { success: false, error: "נכשל גם בפורמט REST מתוקן" };
+  return { success: false, error: "נכשל גם בשיטה הבטוחה" };
 }
