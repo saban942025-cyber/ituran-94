@@ -1,132 +1,116 @@
 'use client';
 import React, { useState, useRef } from 'react';
-import { 
-  FileUp, MapPin, CheckCircle2, AlertTriangle, 
-  Search, LayoutDashboard, FileText, Clock, Loader2, Activity
-} from 'lucide-react';
+import { FileUp, LayoutDashboard, FileText, Clock, Loader2, Activity, ShieldCheck } from 'lucide-react';
 import { processScan } from '../actions/process-scan';
 
 export default function GaliaCyberDashboard() {
   const [isProcessing, setIsProcessing] = useState(false);
-  const [uploadStatus, setUploadStatus] = useState('');
-  const [liveResults, setLiveResults] = useState<any[]>([]); // נתוני אמת מג'ימיני
+  const [status, setStatus] = useState('');
+  const [results, setResults] = useState<any[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzTgyqBz-O4WxBs6Ivi-1sk-Ux4REEfdwWK6kBJvkVdM3kxl5FjeP8CfadNHtYOpOE7/exec';
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setIsProcessing(true);
-    setUploadStatus('1. שומר בדרייב...');
+    setStatus('1. שומר בדרייב...');
 
     const reader = new FileReader();
     reader.readAsDataURL(file);
     reader.onload = async () => {
-      const base64Data = reader.result as string;
+      const base64 = reader.result as string;
 
       try {
-        // שלב א: שמירה בדרייב (ארכיון)
+        // שלב א: שליחה לדרייב (Google Script)
         await fetch(SCRIPT_URL, {
           method: 'POST',
           mode: 'no-cors',
           body: JSON.stringify({
-            fileName: `GALIA_${Date.now()}_${file.name}`,
-            base64Data: base64Data,
-            folderName: 'galya'
-          }),
+            fileName: `GALYA_${Date.now()}_${file.name}`,
+            base64Data: base64,
+            type: 'admin_upload'
+          })
         });
 
-        // שלב ב: ניתוח אונליין ע"י ג'ימיני
-        setUploadStatus('2. ג\'ימיני מנתח נתונים...');
-        const res = await processScan(base64Data, { lat: 0, lng: 0 }, { source: "GALIA_ADMIN" });
+        // שלב ב: ניתוח ג'ימיני
+        setStatus('2. ג\'ימיני מנתח נתונים...');
+        const res = await processScan(base64, { lat: 0, lng: 0 }, { source: "GALIA_OFFICE" });
 
         if (res && res.success) {
-          setLiveResults(prev => [{
+          setResults(prev => [{
             id: Date.now(),
-            invoice: res.data.invoiceNumber,
-            client: res.data.customerName || 'לקוח לא זוהה',
-            status: 'ממתין לאיתורן',
-            pto: 'בבדיקה...', // יתמלא בהצלבת איתורן
-            time: new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
+            invoice: res.data.invoiceNumber || '---',
+            client: res.data.customerName || 'לא זוהה',
+            time: new Date().toLocaleTimeString('he-IL'),
           }, ...prev]);
-          setUploadStatus('✅ הושלם בהצלחה');
+          setStatus('✅ הושלם בהצלחה!');
         } else {
-          setUploadStatus('❌ ג\'ימיני לא זיהה את התעודה');
+          setStatus(`❌ שגיאה: ${res?.error || 'ניתוח נכשל'}`);
         }
-      } catch (error) {
-        setUploadStatus('❌ תקלה בתהליך');
+      } catch (err) {
+        setStatus('❌ תקלה בתקשורת');
       } finally {
         setIsProcessing(false);
-        setTimeout(() => setUploadStatus(''), 5000);
+        setTimeout(() => setStatus(''), 5000);
       }
     };
   };
 
   return (
-    <div className="dashboard-container">
-      {/* Navbar ועיצוב כללי - זהה לקוד הקודם */}
-      <nav className="navbar">
-        <div className="nav-left"><span className="logo">SABAN <span className="gold">94</span> CYBER</span></div>
-        <div className="nav-right"><span className="user-name">מרכז בקרה גליה</span><div className="status-dot"></div></div>
+    <div className="admin-container">
+      <nav className="nav">
+        <div className="flex items-center gap-2">
+          <ShieldCheck className="gold" size={24} />
+          <span className="logo gold">SABAN 94 CYBER</span>
+        </div>
+        <div className="status-indicator">
+          <div className="dot"></div>
+          <span>מערכת בקרה פעילה - גליה</span>
+        </div>
       </nav>
 
-      <div className="main-layout">
-        <aside className="sidebar">
-          <LayoutDashboard className="active" size={24} />
-          <Activity size={24} />
-          <Clock size={24} />
+      <div className="layout">
+        <aside className="menu">
+          <LayoutDashboard className="gold" />
+          <Activity />
+          <FileText />
+          <Clock />
         </aside>
 
-        <main className="content">
-          <header className="content-header">
-            <div>
-              <h1>ניהול תעודות וניתוח אונליין</h1>
-              <p className="gold">ניתוח ג'ימיני פעיל + הכנה לנתוני PTO מאיתורן</p>
-            </div>
-          </header>
-
-          <div className="data-section">
-            {/* וידג'ט העלאה */}
-            <div className="upload-box">
-              <h3>העלאה מהירה לארכיון</h3>
-              <div className="drop-zone" onClick={() => !isProcessing && fileInputRef.current?.click()}>
-                {isProcessing ? <Loader2 className="animate-spin gold" size={40} /> : <FileUp size={40} className="gold" />}
-                <p>{isProcessing ? uploadStatus : 'גרור תעודה או לחץ כאן'}</p>
+        <main className="main">
+          <div className="grid">
+            <div className="card upload">
+              <h3>העלאה לארכיון וניתוח</h3>
+              <div className="dropzone" onClick={() => !isProcessing && fileInputRef.current?.click()}>
+                {isProcessing ? <Loader2 className="spin gold" size={48} /> : <FileUp size={48} className="gold" />}
+                <p className="mt-4">{isProcessing ? status : 'גרור או לחץ להעלאת תעודה/דיסקית'}</p>
               </div>
-              <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept="image/*,application/pdf" />
+              <input type="file" ref={fileInputRef} onChange={onUpload} className="hidden" accept="image/*,application/pdf" />
             </div>
 
-            {/* טבלת ניתוח חיה */}
-            <div className="table-container">
-              <div className="table-header">
-                <h3>מעקב יומי וסטטוס PTO</h3>
-                <button className="sync-btn">בצע הצלבת איתורן (16:00)</button>
-              </div>
+            <div className="card table-card">
+              <h3>נתוני אמת - הצלבה אונליין</h3>
               <table>
                 <thead>
                   <tr>
                     <th>זמן</th>
                     <th>מספר תעודה</th>
                     <th>לקוח</th>
-                    <th>סטטוס הצלבה</th>
-                    <th>PTO (עבודת מנוף/מערבל)</th>
+                    <th>סטטוס PTO</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {liveResults.map(row => (
-                    <tr key={row.id}>
-                      <td>{row.time}</td>
-                      <td className="font-bold">{row.invoice}</td>
-                      <td>{row.client}</td>
-                      <td><span className="wait-badge">{row.status}</span></td>
-                      <td className="pto-cell"><Activity size={14} /> {row.pto}</td>
+                  {results.map(r => (
+                    <tr key={r.id}>
+                      <td>{r.time}</td>
+                      <td className="gold font-bold">{r.invoice}</td>
+                      <td>{r.client}</td>
+                      <td><span className="wait-tag">ממתין להצלבה</span></td>
                     </tr>
                   ))}
-                  {liveResults.length === 0 && (
-                    <tr><td colSpan={5} className="text-center py-10 text-gray-600">אין תעודות מנותחות להיום. העלי תעודה ראשונה.</td></tr>
-                  )}
                 </tbody>
               </table>
             </div>
@@ -135,25 +119,25 @@ export default function GaliaCyberDashboard() {
       </div>
 
       <style jsx>{`
-        .dashboard-container { background: #0a0a0a; color: #e0e0e0; min-height: 100vh; direction: rtl; font-family: sans-serif; }
-        .navbar { height: 60px; background: #151515; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-bottom: 1px solid #333; }
+        .admin-container { background: #0a0a0a; color: #fff; min-height: 100vh; direction: rtl; font-family: sans-serif; }
+        .nav { height: 60px; background: #151515; display: flex; align-items: center; justify-content: space-between; padding: 0 25px; border-bottom: 1px solid #333; }
         .gold { color: #C9A227; }
-        .main-layout { display: flex; }
-        .sidebar { width: 70px; background: #111; display: flex; flex-direction: column; align-items: center; padding: 30px 0; gap: 30px; border-left: 1px solid #333; min-height: calc(100vh - 60px); }
-        .content { flex: 1; padding: 40px; }
-        .data-section { display: grid; grid-template-columns: 0.8fr 2fr; gap: 30px; }
-        .upload-box { background: #151515; padding: 25px; border-radius: 12px; border: 1px solid #333; height: fit-content; }
-        .drop-zone { border: 2px dashed #333; border-radius: 12px; padding: 30px; text-align: center; cursor: pointer; margin-top: 15px; }
-        .table-container { background: #151515; border-radius: 12px; padding: 25px; border: 1px solid #333; }
-        .table-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .sync-btn { background: #C9A227; color: black; border: none; padding: 8px 15px; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 0.8rem; }
-        table { width: 100%; border-collapse: collapse; }
-        th { text-align: right; color: #666; padding-bottom: 15px; border-bottom: 1px solid #333; font-size: 0.85rem; }
-        td { padding: 15px 0; border-bottom: 1px solid #222; font-size: 0.9rem; }
-        .wait-badge { background: #332b00; color: #ffcc00; padding: 3px 10px; border-radius: 12px; font-size: 0.75rem; }
-        .pto-cell { color: #888; display: flex; align-items: center; gap: 5px; }
+        .status-indicator { display: flex; align-items: center; gap: 10px; font-size: 0.8rem; }
+        .dot { width: 8px; height: 8px; background: #4ade80; border-radius: 50%; box-shadow: 0 0 10px #4ade80; }
+        .layout { display: flex; }
+        .menu { width: 70px; background: #111; display: flex; flex-direction: column; align-items: center; padding: 30px 0; gap: 35px; min-height: calc(100vh - 60px); border-left: 1px solid #333; }
+        .main { flex: 1; padding: 40px; }
+        .grid { display: grid; grid-template-columns: 1fr 2fr; gap: 30px; }
+        .card { background: #151515; padding: 25px; border-radius: 15px; border: 1px solid #333; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+        .dropzone { border: 2px dashed #333; border-radius: 12px; padding: 60px 20px; text-align: center; cursor: pointer; transition: 0.3s; }
+        .dropzone:hover { border-color: #C9A227; background: #1a1a1a; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th { text-align: right; color: #666; font-size: 0.85rem; padding-bottom: 15px; border-bottom: 1px solid #333; }
+        td { padding: 18px 0; border-bottom: 1px solid #222; font-size: 0.95rem; }
+        .wait-tag { background: #332b00; color: #C9A227; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; border: 1px solid #443a00; }
+        .spin { animation: spin 2s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         .hidden { display: none; }
-        .status-dot { width: 10px; height: 10px; background: #4ade80; border-radius: 50%; box-shadow: 0 0 10px #4ade80; }
       `}</style>
     </div>
   );
