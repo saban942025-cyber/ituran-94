@@ -3,90 +3,83 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { db } from "@/lib/firebase"; 
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
-import { SABAN_OCR_SCHEMA, SABAN_PROMPT } from "../../lib/ocr-brain";
 
 export async function processScan(base64Image: string, location: any, localDraft: any) {
-  // 1. הגדרת המפתחות מה-Environment Variables
-  const apiKeys = [
+  // 1. איסוף המפתחות
+  const keys = [
     process.env.GEMINI_API_KEY,
     process.env.GEMINI_API_KEY_2,
     process.env.GEMINI_API_KEY_3
   ].filter(Boolean) as string[];
 
-  if (apiKeys.length === 0) {
-    return { success: false, error: "לא נמצאו מפתחות API תקינים ב-Vercel" };
+  console.log(`--- 🛡️ מלשינון: התחלת תהליך סריקה (נמצאו ${keys.length} מפתחות) ---`);
+
+  if (keys.length === 0) {
+    console.error("❌ מלשינון: אין מפתחות API מוגדרים ב-Vercel!");
+    return { success: false, error: "שגיאת תשתית: מפתחות חסרים" };
   }
 
-  // 2. ניקוי והכנת התמונה (מוריד את ה-header של ה-base64)
-  const base64Data = base64Image.replace(/^data:image\/(png|jpg|jpeg);base64,/, "");
+  // ניקוי ה-Base64
+  const cleanBase64 = base64Image.includes(',') ? base64Image.split(',')[1] : base64Image;
+  console.log(`📸 מלשינון: גודל תמונה נקי: ${(cleanBase64.length / 1024).toFixed(2)} KB`);
 
-  let lastErrorMessage = "";
+  let lastError = "";
 
-  // 3. לולאת הדילוג (Failover) - מנסה כל מפתח בזה אחר זה
-  for (let i = 0; i < apiKeys.length; i++) {
+  // 2. לולאת הדילוג והדיווח
+  for (let i = 0; i < keys.length; i++) {
+    const currentKey = keys[i];
+    const keyTag = `Key[${i + 1}] (${currentKey.substring(0, 6)}...)`;
+
     try {
-      // יצירת חיבור ל-API בגרסת ה-v1beta הנתמכת
-      const genAI = new GoogleGenerativeAI(apiKeys[i]);
-      const model = genAI.getGenerativeModel({ 
-        model: "gemini-1.5-flash",
-      });
-
-      // הגדרות ייצור (Production Settings)
-      const generationConfig: any = {
-        temperature: 0.1, // דיוק מקסימלי, בלי "המצאות"
-        topP: 0.95,
-        topK: 64,
-        maxOutputTokens: 2048,
-        responseMimeType: "application/json", // עכשיו זה יעבוד ב-v1beta!
-      };
-
-      const result = await model.generateContent({
-        contents: [{
-          role: "user",
-          parts: [
-            { inlineData: { data: base64Data, mimeType: "image/jpeg" } },
-            { text: `${SABAN_PROMPT}\nReturn JSON structure: ${JSON.stringify(SABAN_OCR_SCHEMA)}` }
-          ]
-        }],
-        generationConfig
-      });
-
-      const response = await result.response;
-      const text = response.text();
+      console.log(`🔄 מלשינון: מנסה את ${keyTag}`);
       
-      // ניקוי JSON במידה והמודל הוסיף Markdown
-      const cleanJson = text.replace(/```json|```/g, "").trim();
-      const data = JSON.parse(cleanJson);
+      const genAI = new GoogleGenerativeAI(currentKey);
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-      // 4. שמירה ל-Firebase תחת "ח. סבן הייטק"
-      const docRef = await addDoc(collection(db, "processed_notes"), {
+      const result = await model.generateContent([
+        { inlineData: { data: cleanBase64, mimeType: "image/jpeg" } },
+        { text: `Analyze this Saban 94 document. Return ONLY JSON. 
+                 Invoice structure: {"invoiceNumber": "string", "customer": "string"}
+                 Disk structure: {"type": "disk", "driver": "string"}` }
+      ]);
+
+      const responseText = result.response.text();
+      console.log(`✅ מלשינון: ${keyTag} הצליח! תשובה:`, responseText);
+
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error("התשובה לא מכילה JSON תקין");
+
+      const data = JSON.parse(jsonMatch[0]);
+
+      // שמירה לארכיון
+      await addDoc(collection(db, "processed_notes"), {
         ...data,
-        driver: "חכמת",
-        location: location || { lat: 0, lng: 0 },
         timestamp: serverTimestamp(),
-        meta: {
-          apiKeyIndex: i + 1,
-          apiVersion: "v1beta"
-        }
+        meta: { keyUsed: i + 1, status: "success" }
       });
 
-      return { success: true, id: docRef.id, data };
+      return { success: true, data };
 
-    } catch (error: any) {
-      console.error(`Key ${i + 1} failed:`, error.message);
-      lastErrorMessage = error.message;
+    } catch (err: any) {
+      lastError = err.message;
+      console.warn(`⚠️ מלשינון: ${keyTag} נכשל. סיבה: ${lastError}`);
 
-      // אם זו שגיאת בטיחות (Safety) או הרשאות (403), אין טעם לנסות מפתח אחר באותה בקשה
-      if (lastErrorMessage.includes("SAFETY") || lastErrorMessage.includes("403")) {
-        break;
+      // אם זו שגיאת עומס (429) או שגיאת שרת (500) - נמשיך לבא בתור
+      if (lastError.includes("429") || lastError.includes("500") || lastError.includes("fetch")) {
+        console.log("⏭️ מלשינון: עובר למפתח הבא בגלל עומס/תקלה טכנית...");
+        continue;
       }
-      // אחרת (עומס 429 או שגיאת שרת 500) - עוברים למפתח הבא
-      continue;
+
+      // אם המפתח לא תקין (403/400) - נדווח ונמשיך
+      if (lastError.includes("API_KEY_INVALID") || lastError.includes("403")) {
+        console.error(`🚫 מלשינון: ${keyTag} פסול לשימוש!`);
+        continue;
+      }
+
+      break; // בשגיאות אחרות (כמו בטיחות) נעצור
     }
   }
 
-  return { 
-    success: false, 
-    error: `כל הניסיונות נכשלו. שגיאה אחרונה: ${lastErrorMessage}` 
-  };
+  console.error(`💀 מלשינון סופי: כל ${keys.length} המפתחות נכשלו!`);
+  return { success: false, error: `כל הניסיונות נכשלו: ${lastError}` };
 }
