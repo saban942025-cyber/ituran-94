@@ -1,6 +1,6 @@
 'use server';
 
-import { GoogleGenAI } from "@google/genai"; // ה-SDK החדש
+import { GoogleGenAI } from "gemini-2.5-flash"; // ה-SDK החדש
 import { db } from "@/lib/firebase"; 
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
