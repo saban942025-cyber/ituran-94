@@ -5,7 +5,7 @@ import { db } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
 export async function processScan(base64Image: string, location: any, localDraft: any) {
-  // 1. איסוף המפתחות
+  // 1. איסוף המפתחות מה-Environment
   const keys = [
     process.env.GEMINI_API_KEY,
     process.env.GEMINI_API_KEY_2,
@@ -16,16 +16,16 @@ export async function processScan(base64Image: string, location: any, localDraft
 
   if (keys.length === 0) {
     console.error("❌ מלשינון: אין מפתחות API מוגדרים ב-Vercel!");
-    return { success: false, error: "שגיאת תשתית: מפתחות חסרים" };
+    return { success: false, error: "חסרים מפתחות API" };
   }
 
-  // ניקוי ה-Base64
+  // 2. ניקוי Base64 - חשוב לניתוח תקין
   const cleanBase64 = base64Image.includes(',') ? base64Image.split(',')[1] : base64Image;
-  console.log(`📸 מלשינון: גודל תמונה נקי: ${(cleanBase64.length / 1024).toFixed(2)} KB`);
+  console.log(`📸 מלשינון: גודל תמונה: ${(cleanBase64.length / 1024).toFixed(2)} KB`);
 
   let lastError = "";
 
-  // 2. לולאת הדילוג והדיווח
+  // 3. לולאת הניסיונות (Failover)
   for (let i = 0; i < keys.length; i++) {
     const currentKey = keys[i];
     const keyTag = `Key[${i + 1}] (${currentKey.substring(0, 6)}...)`;
@@ -34,52 +34,54 @@ export async function processScan(base64Image: string, location: any, localDraft
       console.log(`🔄 מלשינון: מנסה את ${keyTag}`);
       
       const genAI = new GoogleGenerativeAI(currentKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      
+      // התיקון הקריטי: הכרחת apiVersion ל-v1beta כדי למנוע 404
+      const model = genAI.getGenerativeModel(
+        { model: "gemini-1.5-flash" },
+        { apiVersion: 'v1beta' }
+      );
 
       const result = await model.generateContent([
         { inlineData: { data: cleanBase64, mimeType: "image/jpeg" } },
-        { text: `Analyze this Saban 94 document. Return ONLY JSON. 
-                 Invoice structure: {"invoiceNumber": "string", "customer": "string"}
-                 Disk structure: {"type": "disk", "driver": "string"}` }
+        { text: `Analyze this document for Saban 94. 
+          Return ONLY JSON:
+          If Invoice: {"type": "invoice", "invoiceNumber": "string", "customerName": "string", "ptoRequired": boolean}
+          If Tachograph Disk: {"type": "disk", "driverName": "string", "date": "string"}
+          JSON ONLY, NO MARKDOWN.` }
       ]);
 
       const responseText = result.response.text();
-      console.log(`✅ מלשינון: ${keyTag} הצליח! תשובה:`, responseText);
+      console.log(`✅ מלשינון: ${keyTag} הצליח!`);
 
+      // חילוץ JSON נקי
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error("התשובה לא מכילה JSON תקין");
-
+      if (!jsonMatch) throw new Error("JSON_NOT_FOUND");
+      
       const data = JSON.parse(jsonMatch[0]);
 
-      // שמירה לארכיון
-      await addDoc(collection(db, "processed_notes"), {
+      // שמירה ל-Firebase
+      const docRef = await addDoc(collection(db, "processed_notes"), {
         ...data,
+        location: location || { lat: 0, lng: 0 },
+        source: localDraft?.source || "unknown",
         timestamp: serverTimestamp(),
-        meta: { keyUsed: i + 1, status: "success" }
+        meta: { keyUsed: i + 1 }
       });
 
-      return { success: true, data };
+      return { success: true, id: docRef.id, data };
 
     } catch (err: any) {
       lastError = err.message;
-      console.warn(`⚠️ מלשינון: ${keyTag} נכשל. סיבה: ${lastError}`);
-
-      // אם זו שגיאת עומס (429) או שגיאת שרת (500) - נמשיך לבא בתור
-      if (lastError.includes("429") || lastError.includes("500") || lastError.includes("fetch")) {
-        console.log("⏭️ מלשינון: עובר למפתח הבא בגלל עומס/תקלה טכנית...");
-        continue;
+      console.warn(`⚠️ מלשינון: ${keyTag} נכשל: ${lastError}`);
+      
+      // אם זה 404 או שגיאת גרסה, אין טעם לנסות מפתחות אחרים אם כולם באותה גרסת SDK
+      if (lastError.includes("404") || lastError.includes("v1beta")) {
+         console.error("🚫 מלשינון: שגיאת גרסת API קריטית - בדוק את הגדרת v1beta");
       }
-
-      // אם המפתח לא תקין (403/400) - נדווח ונמשיך
-      if (lastError.includes("API_KEY_INVALID") || lastError.includes("403")) {
-        console.error(`🚫 מלשינון: ${keyTag} פסול לשימוש!`);
-        continue;
-      }
-
-      break; // בשגיאות אחרות (כמו בטיחות) נעצור
+      continue; 
     }
   }
 
-  console.error(`💀 מלשינון סופי: כל ${keys.length} המפתחות נכשלו!`);
-  return { success: false, error: `כל הניסיונות נכשלו: ${lastError}` };
+  console.error(`💀 מלשינון: כל הניסיונות נכשלו!`);
+  return { success: false, error: lastError };
 }
