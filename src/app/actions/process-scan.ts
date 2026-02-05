@@ -8,6 +8,7 @@ export async function processScan(base64Image: string, type: 'invoice' | 'tachog
   const cleanBase64 = base64Image.replace(/^data:.*?;base64,/, "");
   const mimeType = base64Image.includes('application/pdf') ? 'application/pdf' : 'image/jpeg';
 
+  // פרומפט חכם לפי סוג הקובץ
   const prompt = type === 'invoice' 
     ? "Extract from delivery note: invoiceNumber, customerName, date, address. Return ONLY JSON."
     : "Extract from Tachograph disk: driverName, date, startKm, endKm. Return ONLY JSON.";
@@ -19,15 +20,23 @@ export async function processScan(base64Image: string, type: 'invoice' | 'tachog
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ inline_data: { mime_type: mimeType, data: cleanBase64 } }, { text: prompt }] }],
+          contents: [{ 
+            parts: [
+              { inline_data: { mime_type: mimeType, data: cleanBase64 } }, 
+              { text: prompt }
+            ] 
+          }],
           generationConfig: { response_mime_type: "application/json", temperature: 0.1 }
         })
       }
     );
 
+    if (!response.ok) throw new Error(`API Error: ${response.status}`);
+
     const result = await response.json();
     const data = JSON.parse(result.candidates[0].content.parts[0].text);
 
+    // שמירה ל-Firebase
     const docRef = await addDoc(collection(db, "galia_records"), {
       ...data,
       docType: type,
@@ -35,13 +44,13 @@ export async function processScan(base64Image: string, type: 'invoice' | 'tachog
     });
 
     return { success: true, id: docRef.id, data: { ...data, docType: type } };
-  } catch (err) {
-    return { success: false, error: "Analysis failed" };
+  } catch (err: any) {
+    console.error("Analysis failed:", err.message);
+    return { success: false, error: err.message };
   }
 }
 
-// פונקציית שליחה למייל (מדמה שליחה דרך 365)
-export async function sendToEmail(selectedIds: any[]) {
-  console.log("Sending records to Office 365 Mail:", selectedIds);
+export async function sendToEmail(selectedIds: string[]) {
+  console.log("Simulating email send for IDs:", selectedIds);
   return { success: true };
 }
