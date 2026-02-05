@@ -1,6 +1,6 @@
 'use server';
 
-import { GoogleGenAI } from "gemini-2.5-flash"; // ה-SDK החדש
+import { GoogleGenerativeAI } from "@google/generative-ai"; // חזרה לשם החבילה הסטנדרטי
 import { db } from "@/lib/firebase"; 
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
@@ -15,11 +15,10 @@ export async function processScan(base64Image: string, location: any, localDraft
 
   const activeKeys = allKeys.filter(k => !blacklistedKeys.has(k));
 
-  console.log(`--- 🛡️ מלשינון 2026: מעבר ל-Gemini 2.5 Flash (פעילים: ${activeKeys.length}) ---`);
+  console.log(`--- 🛡️ מלשינון 2026: מנתח עם Gemini 2.0/2.5 Flash ---`);
 
   if (activeKeys.length === 0) return { success: false, error: "אין מפתחות תקינים" };
 
-  // ניקוי Base64
   const cleanBase64 = base64Image.replace(/^data:.*?;base64,/, "");
   const mimeType = base64Image.includes('application/pdf') ? 'application/pdf' : 'image/jpeg';
 
@@ -28,24 +27,24 @@ export async function processScan(base64Image: string, location: any, localDraft
     const keyTag = `Key_${i + 1}`;
 
     try {
-      console.log(`🔄 מלשינון: מנסה את ${keyTag} עם מודל 2.5...`);
+      console.log(`🔄 מלשינון: מנסה את ${keyTag} עם SDK מעודכן...`);
       
-      const client = new GoogleGenAI({ apiKey: key });
+      const genAI = new GoogleGenerativeAI(key);
       
-      // שימוש במודל החדש והחזק יותר
-      const resp = await client.models.generateContent({
-        model: "gemini-2.5-flash", 
-        contents: [{
-          role: "user",
-          parts: [
-            { inlineData: { data: cleanBase64, mimeType: mimeType } },
-            { text: "Analyze this document for Saban 94. Return ONLY JSON: {invoiceNumber, customerName, type}" }
-          ]
-        }]
+      // משתמשים במודל הכי חזק שזמין כרגע ב-SDK הזה
+      const model = genAI.getGenerativeModel({ 
+        model: "gemini-2.0-flash" // או gemini-1.5-flash אם 2.0 עדיין ב-Provisioning
       });
 
-      const textResponse = resp.text;
-      console.log(`✅ מלשינון: הצלחה ב-2.5!`);
+      const result = await model.generateContent([
+        { inlineData: { data: cleanBase64, mimeType: mimeType } },
+        { text: "Analyze this document for Saban 94. Return ONLY JSON: {invoiceNumber, customerName, type}" }
+      ]);
+
+      const response = await result.response;
+      const textResponse = response.text();
+      
+      console.log(`✅ מלשינון: ${keyTag} הצליח!`);
 
       const jsonMatch = textResponse.match(/\{[\s\S]*\}/);
       if (!jsonMatch) throw new Error("JSON_NOT_FOUND");
@@ -56,7 +55,7 @@ export async function processScan(base64Image: string, location: any, localDraft
         ...data,
         timestamp: serverTimestamp(),
         source: "GALIA_OFFICE",
-        meta: { keyUsed: keyTag, model: "gemini-2.5-flash" }
+        meta: { keyUsed: keyTag }
       });
 
       return { success: true, data };
@@ -64,11 +63,6 @@ export async function processScan(base64Image: string, location: any, localDraft
     } catch (err: any) {
       console.error(`⚠️ מלשינון: ${keyTag} נכשל. סיבה: ${err.message}`);
       
-      // אם זה 404, סימן שהמפתח עוד לא "ראה" את 2.5 - נדווח על זה
-      if (err.message.includes("404")) {
-        console.error("🆘 מלשינון: המודל 2.5 לא נמצא למפתח זה. בדוק הגדרות Billing ב-AI Studio.");
-      }
-
       if (err.message.includes("403") || err.message.includes("API_KEY_INVALID")) {
         blacklistedKeys.add(key);
       }
@@ -76,5 +70,5 @@ export async function processScan(base64Image: string, location: any, localDraft
     }
   }
 
-  return { success: false, error: "נכשל בכל המפתחות גם בגרסה 2.5" };
+  return { success: false, error: "כל המפתחות נכשלו" };
 }
