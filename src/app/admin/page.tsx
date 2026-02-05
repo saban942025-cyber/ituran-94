@@ -1,4 +1,4 @@
-'use client';
+'use client'; // חייב להיות Client Component כי יש לנו useState ו-Canvas
 import React, { useState, useRef } from 'react';
 import { 
   FileUp, ShieldCheck, Loader2, AlertTriangle, 
@@ -38,11 +38,11 @@ export default function GaliaAdminPage() {
         const ctx = canvas.getContext('2d');
         ctx?.drawImage(img, 0, 0, width, height);
 
-        // כיווץ ל-JPEG באיכות 0.7 (חוסך המון נפח ושומר על חדות לכתב יד)
         const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
         
         try {
           setStatus('ג\'ימיני מנתח מוצרים...');
+          // כאן אנחנו קוראים ל-Server Action מהקובץ הנפרד
           const res = await processScan(compressedBase64, { lat: 0, lng: 0 }, { source: "GALIA" });
           
           if (res?.success) {
@@ -63,63 +63,61 @@ export default function GaliaAdminPage() {
 
   return (
     <div className="admin-wrapper">
-      <nav className="navbar">
+      <nav className="navbar px-6 py-4 border-b border-gray-800 flex items-center gap-2">
         <ShieldCheck className="gold" />
-        <span className="logo gold">SABAN 94 CYBER - GALIA</span>
+        <span className="logo gold font-bold">SABAN 94 CYBER - GALIA</span>
       </nav>
 
       <main className="p-8">
-        <div className="grid">
-          {/* Upload Card */}
-          <div className="card">
-            <h3>סורק מוצרים וכתב יד</h3>
-            <div className={`dropzone ${isProcessing ? 'disabled' : ''}`} onClick={() => !isProcessing && fileInputRef.current?.click()}>
-              {isProcessing ? <Loader2 className="spin gold" size={40} /> : <FileUp size={40} />}
-              <p>{isProcessing ? status : 'העלה תעודה לניתוח חריגות'}</p>
+        <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-6">
+          <div className="card bg-[#111] p-6 rounded-xl border border-gray-800">
+            <h3 className="mb-4 font-bold">סורק מוצרים וכתב יד</h3>
+            <div className={`dropzone border-2 border-dashed border-gray-700 p-8 text-center rounded-lg cursor-pointer hover:border-yellow-600 transition-colors ${isProcessing ? 'opacity-50 pointer-events-none' : ''}`} onClick={() => fileInputRef.current?.click()}>
+              {isProcessing ? <Loader2 className="spin gold mx-auto" size={40} /> : <FileUp className="mx-auto mb-2 text-gray-500" size={40} />}
+              <p className="text-sm text-gray-400">{isProcessing ? status : 'העלה תעודה לניתוח חריגות'}</p>
             </div>
             <input type="file" ref={fileInputRef} onChange={(e) => e.target.files?.[0] && compressAndProcess(e.target.files[0])} className="hidden" accept="image/*,application/pdf" />
           </div>
 
-          {/* Results Table */}
-          <div className="card">
-            <table className="w-full">
+          <div className="card bg-[#111] p-6 rounded-xl border border-gray-800">
+            <table className="w-full text-right">
               <thead>
-                <tr>
-                  <th>זמן</th>
-                  <th>תעודה</th>
-                  <th>לקוח</th>
-                  <th>סטטוס</th>
+                <tr className="text-gray-500 text-xs uppercase border-b border-gray-800">
+                  <th className="pb-3">זמן</th>
+                  <th className="pb-3">תעודה</th>
+                  <th className="pb-3 text-right">לקוח</th>
+                  <th className="pb-3">סטטוס</th>
                 </tr>
               </thead>
               <tbody>
                 {results.map(r => (
                   <React.Fragment key={r.id}>
-                    <tr className="row-hover" onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}>
-                      <td>{r.time}</td>
-                      <td className="gold">{r.invoiceNumber}</td>
-                      <td>{r.customerName}</td>
-                      <td>
-                        {r.hasDiscrepancy ? <span className="tag-red">חריגה</span> : <span className="tag-green">תקין</span>}
+                    <tr className="border-b border-gray-900 hover:bg-white/5 cursor-pointer transition-colors" onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}>
+                      <td className="py-4 text-gray-500 text-sm">{r.time}</td>
+                      <td className="py-4 gold font-mono">{r.invoiceNumber}</td>
+                      <td className="py-4">{r.customerName}</td>
+                      <td className="py-4">
+                        {r.hasDiscrepancy ? <span className="bg-red-900/30 text-red-500 px-2 py-1 rounded text-xs">חריגה</span> : <span className="bg-green-900/30 text-green-500 px-2 py-1 rounded text-xs">תקין</span>}
                       </td>
                     </tr>
                     {expandedId === r.id && (
-                      <tr className="bg-details">
-                        <td colSpan={4} className="p-4">
+                      <tr className="bg-black/40">
+                        <td colSpan={4} className="p-4 border-b border-yellow-900/20">
                           <div className="flex flex-col gap-4">
                             <div>
-                              <h4 className="flex items-center gap-2 gold text-sm"><Package size={14}/> פריטים שנמצאו:</h4>
-                              <div className="flex flex-wrap gap-2 mt-2">
+                              <h4 className="flex items-center gap-2 gold text-sm mb-2"><Package size={14}/> פריטים שנמצאו:</h4>
+                              <div className="flex flex-wrap gap-2">
                                 {r.items?.map((it: any, i: number) => (
-                                  <div key={i} className="pill">
-                                    {it.name} ({it.qty}) {it.returned > 0 && <span className="text-red-500">חזר: {it.returned}</span>}
+                                  <div key={i} className="bg-gray-800 px-3 py-1 rounded-full text-xs border border-gray-700">
+                                    {it.name} ({it.qty}) {it.returned > 0 && <span className="text-red-400 mr-1">- {it.returned}</span>}
                                   </div>
                                 ))}
                               </div>
                             </div>
                             {r.handwrittenNotes && (
-                              <div className="border-t border-gray-800 pt-2">
-                                <h4 className="flex items-center gap-2 gold text-sm"><MessageSquare size={14}/> הערות בכתב יד:</h4>
-                                <p className="text-gray-400 italic mt-1 text-sm">{r.handwrittenNotes}</p>
+                              <div className="border-t border-gray-800 pt-3">
+                                <h4 className="flex items-center gap-2 gold text-sm mb-1"><MessageSquare size={14}/> הערות בכתב יד:</h4>
+                                <p className="text-gray-400 italic text-sm">{r.handwrittenNotes}</p>
                               </div>
                             )}
                           </div>
@@ -135,21 +133,9 @@ export default function GaliaAdminPage() {
       </main>
 
       <style jsx>{`
-        .admin-wrapper { background: #050505; color: #fff; min-height: 100vh; direction: rtl; }
-        .navbar { background: #111; padding: 15px 30px; border-bottom: 1px solid #222; display: flex; align-items: center; gap: 10px; }
         .gold { color: #C9A227; }
-        .card { background: #111; border-radius: 12px; padding: 20px; border: 1px solid #222; }
-        .grid { display: grid; grid-template-columns: 300px 1fr; gap: 20px; }
-        .dropzone { border: 2px dashed #333; padding: 40px; text-align: center; cursor: pointer; border-radius: 10px; }
-        .tag-red { color: #ff4d4d; background: #300; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; }
-        .tag-green { color: #4ade80; background: #030; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; }
-        .row-hover { cursor: pointer; transition: 0.2s; }
-        .row-hover:hover { background: #1a1a1a; }
-        .bg-details { background: #0a0a0a; }
-        .pill { background: #222; padding: 4px 12px; border-radius: 20px; font-size: 0.85rem; border: 1px solid #333; }
         .spin { animation: spin 2s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .hidden { display: none; }
       `}</style>
     </div>
   );
