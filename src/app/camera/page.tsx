@@ -23,8 +23,7 @@ export default function SabanScanner() {
     setIsProcessing(true);
     setStatus('🚀 ג\'ימיני מנתח קובץ...');
     try {
-      const res = await processScan(imageSrc, { lat: 0, lng: 0 }, { invoiceNumber: "UPLOAD" });
-      if (res && res.success) {
+     const res = await processScan(imageSrc, 'invoice');      if (res && res.success) {
         setStatus('✅ הקובץ עובד בהצלחה!');
         setTimeout(() => { setIsProcessing(false); setStatus('מוכן לסריקה'); }, 3000);
       } else {
