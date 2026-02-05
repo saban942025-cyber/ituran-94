@@ -1,199 +1,154 @@
 'use client';
 import React, { useState, useRef } from 'react';
 import { 
-  FileUp, LayoutDashboard, FileText, Clock, Loader2, 
-  Activity, ShieldCheck, AlertTriangle, ChevronDown, ChevronUp,
-  Package, MessageSquare, CheckCircle
+  FileUp, ShieldCheck, Loader2, AlertTriangle, 
+  CheckCircle, ChevronDown, ChevronUp, Package, MessageSquare 
 } from 'lucide-react';
 import { processScan } from '../actions/process-scan';
 
-export default function GaliaCyberDashboard() {
+export default function GaliaAdminPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [status, setStatus] = useState('');
   const [results, setResults] = useState<any[]>([]);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzTgyqBz-O4WxBs6Ivi-1sk-Ux4REEfdwWK6kBJvkVdM3kxl5FjeP8CfadNHtYOpOE7/exec';
-
-  const onUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const compressAndProcess = async (file: File) => {
     setIsProcessing(true);
-    setStatus('שומר בדרייב ומנתח כתב יד...');
+    setStatus('מכווץ תמונה...');
 
     const reader = new FileReader();
     reader.readAsDataURL(file);
-    reader.onload = async () => {
-      const base64 = reader.result as string;
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = async () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 1600;
+        let width = img.width;
+        let height = img.height;
 
-      try {
-        // 1. גיבוי לדרייב
-        await fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ fileName: `G_${Date.now()}_${file.name}`, base64Data: base64 }) });
-
-        // 2. ניתוח מוצרים וחריגות (המלשינון)
-        const res = await processScan(base64, { lat: 0, lng: 0 }, { source: "GALIA_OFFICE" });
-
-        if (res && res.success) {
-          const newData = {
-            id: Date.now(),
-            invoice: res.data.invoiceNumber || '---',
-            client: res.data.customerName || 'לא זוהה',
-            items: res.data.items || [],
-            notes: res.data.handwrittenNotes || '',
-            hasError: res.data.hasDiscrepancy || false,
-            time: new Date().toLocaleTimeString('he-IL'),
-          };
-          setResults(prev => [newData, ...prev]);
-          setStatus('✅ ניתוח מוצרים הושלם');
-        } else {
-          setStatus('❌ תקלה בניתוח');
+        if (width > MAX_WIDTH) {
+          height *= MAX_WIDTH / width;
+          width = MAX_WIDTH;
         }
-      } catch (err) {
-        setStatus('❌ שגיאת מערכת');
-      } finally {
-        setIsProcessing(false);
-        setTimeout(() => setStatus(''), 4000);
-      }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+
+        // כיווץ ל-JPEG באיכות 0.7 (חוסך המון נפח ושומר על חדות לכתב יד)
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+        
+        try {
+          setStatus('ג\'ימיני מנתח מוצרים...');
+          const res = await processScan(compressedBase64, { lat: 0, lng: 0 }, { source: "GALIA" });
+          
+          if (res?.success) {
+            setResults(prev => [{ ...res.data, id: Date.now(), time: new Date().toLocaleTimeString('he-IL') }, ...prev]);
+            setStatus('✅ הושלם');
+          } else {
+            setStatus('❌ שגיאה בניתוח');
+          }
+        } catch (e) {
+          setStatus('❌ שגיאת תקשורת');
+        } finally {
+          setIsProcessing(false);
+          setTimeout(() => setStatus(''), 3000);
+        }
+      };
     };
   };
 
-  const toggleRow = (id: number) => setExpandedId(expandedId === id ? null : id);
-
   return (
-    <div className="cyber-admin">
-      {/* Top Navbar */}
+    <div className="admin-wrapper">
       <nav className="navbar">
-        <div className="flex items-center gap-3">
-          <ShieldCheck className="gold" size={28} />
-          <span className="logo gold font-bold tracking-tighter">SABAN 94 CYBER</span>
-        </div>
-        <div className="user-profile">
-          <div className="dot animate-pulse"></div>
-          <span>מנהלת מערכת: גליה</span>
-        </div>
+        <ShieldCheck className="gold" />
+        <span className="logo gold">SABAN 94 CYBER - GALIA</span>
       </nav>
 
-      <div className="layout">
-        <aside className="sidebar">
-          <LayoutDashboard className="active gold" size={24} />
-          <Activity size={24} />
-          <FileText size={24} />
-        </aside>
-
-        <main className="content">
-          <div className="dashboard-grid">
-            
-            {/* Upload Section */}
-            <div className="card upload-section">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-bold">סורק תעודות חכם</h3>
-                {isProcessing && <Loader2 className="spin gold" />}
-              </div>
-              
-              <div className="dropzone" onClick={() => !isProcessing && fileInputRef.current?.click()}>
-                <FileUp size={48} className={isProcessing ? 'gold opacity-50' : 'text-gray-700'} />
-                <p className="mt-4">{isProcessing ? status : 'לחץ להעלאת תעודה לניתוח מוצרים'}</p>
-              </div>
-              <input type="file" ref={fileInputRef} onChange={onUpload} className="hidden" accept="image/*,application/pdf" />
+      <main className="p-8">
+        <div className="grid">
+          {/* Upload Card */}
+          <div className="card">
+            <h3>סורק מוצרים וכתב יד</h3>
+            <div className={`dropzone ${isProcessing ? 'disabled' : ''}`} onClick={() => !isProcessing && fileInputRef.current?.click()}>
+              {isProcessing ? <Loader2 className="spin gold" size={40} /> : <FileUp size={40} />}
+              <p>{isProcessing ? status : 'העלה תעודה לניתוח חריגות'}</p>
             </div>
-
-            {/* Results Table */}
-            <div className="card table-card">
-              <h3 className="mb-6 font-bold text-lg border-b border-gray-800 pb-3">מעקב החזרות ומוצרים אונליין</h3>
-              
-              <div className="table-container">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>זמן</th>
-                      <th>תעודה</th>
-                      <th>לקוח</th>
-                      <th>סטטוס</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {results.map(r => (
-                      <React.Fragment key={r.id}>
-                        <tr onClick={() => toggleRow(r.id)} className={`cursor-pointer hover:bg-black/40 ${r.hasError ? 'border-r-4 border-red-600' : ''}`}>
-                          <td className="text-gray-500 text-xs">{r.time}</td>
-                          <td className="gold font-mono">{r.invoice}</td>
-                          <td className="font-medium">{r.client}</td>
-                          <td>
-                            {r.hasError ? 
-                              <span className="badge-error"><AlertTriangle size={12}/> חריגה</span> : 
-                              <span className="badge-success"><CheckCircle size={12}/> תקין</span>
-                            }
-                          </td>
-                          <td>{expandedId === r.id ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}</td>
-                        </tr>
-                        
-                        {/* Expanded Detail View */}
-                        {expandedId === r.id && (
-                          <tr className="bg-white/5">
-                            <td colSpan={5} className="p-0">
-                              <div className="details-panel fade-in">
-                                <div className="detail-section">
-                                  <h4 className="flex items-center gap-2 text-sm gold mb-3"><Package size={14}/> פירוט מוצרים וכמויות:</h4>
-                                  <div className="items-list">
-                                    {r.items.map((item: any, i: number) => (
-                                      <div key={i} className={`item-row ${item.returned > 0 ? 'text-red-400' : ''}`}>
-                                        <span>{item.name}</span>
-                                        <span className="font-mono">כמות: {item.qty} {item.returned > 0 ? `| החזרה: ${item.returned}` : ''}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                                {r.notes && (
-                                  <div className="detail-section border-t border-gray-800">
-                                    <h4 className="flex items-center gap-2 text-sm gold mb-2"><MessageSquare size={14}/> זיהוי כתב יד (הערות):</h4>
-                                    <p className="text-sm italic text-gray-300 bg-black/30 p-3 rounded-lg border border-gray-800">{r.notes}</p>
-                                  </div>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
+            <input type="file" ref={fileInputRef} onChange={(e) => e.target.files?.[0] && compressAndProcess(e.target.files[0])} className="hidden" accept="image/*,application/pdf" />
           </div>
-        </main>
-      </div>
+
+          {/* Results Table */}
+          <div className="card">
+            <table className="w-full">
+              <thead>
+                <tr>
+                  <th>זמן</th>
+                  <th>תעודה</th>
+                  <th>לקוח</th>
+                  <th>סטטוס</th>
+                </tr>
+              </thead>
+              <tbody>
+                {results.map(r => (
+                  <React.Fragment key={r.id}>
+                    <tr className="row-hover" onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}>
+                      <td>{r.time}</td>
+                      <td className="gold">{r.invoiceNumber}</td>
+                      <td>{r.customerName}</td>
+                      <td>
+                        {r.hasDiscrepancy ? <span className="tag-red">חריגה</span> : <span className="tag-green">תקין</span>}
+                      </td>
+                    </tr>
+                    {expandedId === r.id && (
+                      <tr className="bg-details">
+                        <td colSpan={4} className="p-4">
+                          <div className="flex flex-col gap-4">
+                            <div>
+                              <h4 className="flex items-center gap-2 gold text-sm"><Package size={14}/> פריטים שנמצאו:</h4>
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                {r.items?.map((it: any, i: number) => (
+                                  <div key={i} className="pill">
+                                    {it.name} ({it.qty}) {it.returned > 0 && <span className="text-red-500">חזר: {it.returned}</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                            {r.handwrittenNotes && (
+                              <div className="border-t border-gray-800 pt-2">
+                                <h4 className="flex items-center gap-2 gold text-sm"><MessageSquare size={14}/> הערות בכתב יד:</h4>
+                                <p className="text-gray-400 italic mt-1 text-sm">{r.handwrittenNotes}</p>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </main>
 
       <style jsx>{`
-        .cyber-admin { background: #050505; color: #eee; min-height: 100vh; direction: rtl; font-family: system-ui; }
-        .navbar { height: 60px; background: #0f0f0f; display: flex; align-items: center; justify-content: space-between; padding: 0 30px; border-bottom: 1px solid #222; }
+        .admin-wrapper { background: #050505; color: #fff; min-height: 100vh; direction: rtl; }
+        .navbar { background: #111; padding: 15px 30px; border-bottom: 1px solid #222; display: flex; align-items: center; gap: 10px; }
         .gold { color: #C9A227; }
-        .layout { display: flex; }
-        .sidebar { width: 70px; background: #080808; display: flex; flex-direction: column; align-items: center; padding: 30px 0; gap: 35px; border-left: 1px solid #1a1a1a; min-height: calc(100vh - 60px); }
-        .content { flex: 1; padding: 30px; }
-        .dashboard-grid { display: grid; grid-template-columns: 320px 1fr; gap: 25px; align-items: start; }
-        .card { background: #0f0f0f; border-radius: 12px; border: 1px solid #222; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        .dropzone { border: 2px dashed #333; border-radius: 12px; padding: 40px 15px; text-align: center; cursor: pointer; transition: 0.2s; }
-        .dropzone:hover { border-color: #C9A227; background: #151515; }
-        
-        table { width: 100%; border-collapse: collapse; }
-        th { text-align: right; color: #555; font-size: 0.75rem; padding-bottom: 15px; border-bottom: 1px solid #222; }
-        td { padding: 18px 10px; border-bottom: 1px solid #151515; font-size: 0.9rem; }
-        
-        .badge-success { color: #4ade80; background: #062010; padding: 4px 10px; border-radius: 6px; font-size: 0.7rem; display: inline-flex; align-items: center; gap: 5px; }
-        .badge-error { color: #f87171; background: #2a0a0a; padding: 4px 10px; border-radius: 6px; font-size: 0.7rem; display: inline-flex; align-items: center; gap: 5px; }
-        
-        .details-panel { padding: 20px; border-bottom: 2px solid #C9A227; }
-        .detail-section { padding: 15px 0; }
-        .item-row { display: flex; justify-content: space-between; font-size: 0.85rem; padding: 6px 0; border-bottom: 1px solid #1a1a1a; }
-        
+        .card { background: #111; border-radius: 12px; padding: 20px; border: 1px solid #222; }
+        .grid { display: grid; grid-template-columns: 300px 1fr; gap: 20px; }
+        .dropzone { border: 2px dashed #333; padding: 40px; text-align: center; cursor: pointer; border-radius: 10px; }
+        .tag-red { color: #ff4d4d; background: #300; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; }
+        .tag-green { color: #4ade80; background: #030; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; }
+        .row-hover { cursor: pointer; transition: 0.2s; }
+        .row-hover:hover { background: #1a1a1a; }
+        .bg-details { background: #0a0a0a; }
+        .pill { background: #222; padding: 4px 12px; border-radius: 20px; font-size: 0.85rem; border: 1px solid #333; }
         .spin { animation: spin 2s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .fade-in { animation: fadeIn 0.4s ease-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
         .hidden { display: none; }
       `}</style>
     </div>
