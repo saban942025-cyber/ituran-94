@@ -1,5 +1,6 @@
 'use server';
 
+import { GoogleGenAI } from "@google/genai"; // ה-SDK החדש
 import { db } from "@/lib/firebase"; 
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
@@ -14,10 +15,11 @@ export async function processScan(base64Image: string, location: any, localDraft
 
   const activeKeys = allKeys.filter(k => !blacklistedKeys.has(k));
 
-  console.log(`--- 🛡️ מלשינון ח. סבן: פתרון סופי ללא Config (פעילים: ${activeKeys.length}) ---`);
+  console.log(`--- 🛡️ מלשינון 2026: מעבר ל-Gemini 2.5 Flash (פעילים: ${activeKeys.length}) ---`);
 
   if (activeKeys.length === 0) return { success: false, error: "אין מפתחות תקינים" };
 
+  // ניקוי Base64
   const cleanBase64 = base64Image.replace(/^data:.*?;base64,/, "");
   const mimeType = base64Image.includes('application/pdf') ? 'application/pdf' : 'image/jpeg';
 
@@ -26,38 +28,27 @@ export async function processScan(base64Image: string, location: any, localDraft
     const keyTag = `Key_${i + 1}`;
 
     try {
-      console.log(`🔄 מלשינון: שולח ל-v1 בשיטה הבטוחה ביותר...`);
-
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${key}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{
-              parts: [
-                { inline_data: { mime_type: mimeType, data: cleanBase64 } },
-                { text: "Analyze document. Return ONLY a JSON object: {invoiceNumber, customerName, type}. No intro, no markdown." }
-              ]
-            }],
-            // הסרנו את ה-generationConfig שגרם לבעיות ב-REST
-          })
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error?.message || `HTTP ${response.status}`);
-      }
-
-      const result = await response.json();
-      const textResponse = result.candidates[0].content.parts[0].text;
+      console.log(`🔄 מלשינון: מנסה את ${keyTag} עם מודל 2.5...`);
       
-      console.log(`✅ מלשינון: התקבלה תשובה טקסטואלית, מנקה JSON...`);
+      const client = new GoogleGenAI({ apiKey: key });
+      
+      // שימוש במודל החדש והחזק יותר
+      const resp = await client.models.generateContent({
+        model: "gemini-2.5-flash", 
+        contents: [{
+          role: "user",
+          parts: [
+            { inlineData: { data: cleanBase64, mimeType: mimeType } },
+            { text: "Analyze this document for Saban 94. Return ONLY JSON: {invoiceNumber, customerName, type}" }
+          ]
+        }]
+      });
 
-      // ניקוי התשובה מסימני Markdown אם ג'ימיני הוסיף אותם
+      const textResponse = resp.text;
+      console.log(`✅ מלשינון: הצלחה ב-2.5!`);
+
       const jsonMatch = textResponse.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error("לא נמצא JSON בתשובה");
+      if (!jsonMatch) throw new Error("JSON_NOT_FOUND");
       
       const data = JSON.parse(jsonMatch[0]);
 
@@ -65,7 +56,7 @@ export async function processScan(base64Image: string, location: any, localDraft
         ...data,
         timestamp: serverTimestamp(),
         source: "GALIA_OFFICE",
-        meta: { keyUsed: keyTag }
+        meta: { keyUsed: keyTag, model: "gemini-2.5-flash" }
       });
 
       return { success: true, data };
@@ -73,6 +64,11 @@ export async function processScan(base64Image: string, location: any, localDraft
     } catch (err: any) {
       console.error(`⚠️ מלשינון: ${keyTag} נכשל. סיבה: ${err.message}`);
       
+      // אם זה 404, סימן שהמפתח עוד לא "ראה" את 2.5 - נדווח על זה
+      if (err.message.includes("404")) {
+        console.error("🆘 מלשינון: המודל 2.5 לא נמצא למפתח זה. בדוק הגדרות Billing ב-AI Studio.");
+      }
+
       if (err.message.includes("403") || err.message.includes("API_KEY_INVALID")) {
         blacklistedKeys.add(key);
       }
@@ -80,5 +76,5 @@ export async function processScan(base64Image: string, location: any, localDraft
     }
   }
 
-  return { success: false, error: "נכשל גם בשיטה הבטוחה" };
+  return { success: false, error: "נכשל בכל המפתחות גם בגרסה 2.5" };
 }
