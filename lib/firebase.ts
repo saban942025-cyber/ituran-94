@@ -1,24 +1,25 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
-import { getDatabase } from "firebase/database"; // 1. ייבוא השירות
+import { getStorage } from "firebase/storage";
+import { getDatabase } from "firebase/database"; // לצורך דף הדיווחים/מפה
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBGYsZylsIyeWudp8_SlnLBelkgoNXjU60",
-  authDomain: "app-saban94-57361.firebaseapp.com",
-  databaseURL: "https://app-saban94-57361-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "app-saban94-57361",
-  storageBucket: "app-saban94-57361.firebasestorage.app",
-  messagingSenderId: "275366913167",
-  appId: "1:275366913167:web:f0c6f808e12f2aeb58fcfa",
-  measurementId: "G-E297QYKZKQ"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL // וודא שזה קיים ב-Vercel
 };
 
-// אתחול Singleton
+// אתחול Singleton בטיחותי
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const storage = getStorage(app);
-// ייצוא השירותים
-const db = getFirestore(app); // Firestore הרגיל
-const database = getDatabase(app); // ה-Realtime שדף הדיווחים צריך
 
-export { db, database }; // 2. הייצוא הקריטי שחסר לך
+// הגדרת השירותים פעם אחת בלבד
+const db = getFirestore(app);           // Firestore
+const storage = getStorage(app);         // Storage לקבצים
+const database = getDatabase(app);       // Realtime DB למפה ודיווחים
+
+// ייצוא מסודר של כולם
+export { app, db, storage, database };
