@@ -1,125 +1,166 @@
-'use client';
+'use client'
 
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react'
+import CanvasStudio from '@/components/CanvasStudio'
 import { 
-  FileUp, Mail, Search, Trash2, FileStack, CheckSquare, 
-  ExternalLink, Loader2, HardDrive, Printer
-} from 'lucide-react';
-import { processScan, sendToEmail } from '../actions/process-scan';
+  LayoutDashboard, 
+  FileText, 
+  UploadCloud, 
+  Settings, 
+  Search, 
+  Bell, 
+  UserCircle 
+} from 'lucide-react'
 
-export default function GaliaProfessionalAdmin() {
-  const [loading, setLoading] = useState(false);
-  const [records, setRecords] = useState<any[]>([]);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploadType, setUploadType] = useState<'invoice' | 'tachograph'>('invoice');
+export default function AdminPage() {
+  // מצב לבדיקה: האם אנחנו בתצוגת רשימה או בעריכת תעודה ספציפית
+  const [view, setView] = useState<'list' | 'editor'>('list')
+  const [selectedDoc, setSelectedDoc] = useState<string | null>(null)
 
-  const onFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // נתונים לדוגמה עבור הטבלה
+  const documents = [
+    { id: 'INV-9401', customer: 'ח. סבן הובלות', date: '2026-02-07', status: 'ממתין לאישור' },
+    { id: 'INV-9402', customer: 'גליה לוגיסטיקה', date: '2026-02-06', status: 'בתהליך' },
+  ]
 
-    setLoading(true);
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = async () => {
-      const res = await processScan(reader.result as string, uploadType);
-      if (res.success) {
-        setRecords(prev => [{ ...res.data, id: res.id, time: new Date().toLocaleTimeString() }, ...prev]);
-      }
-      setLoading(false);
-    };
-  };
-
-  const toggleSelect = (id: string) => {
-    const next = new Set(selected);
-    next.has(id) ? next.delete(id) : next.add(id);
-    setSelected(next);
-  };
-
-  const handleSendMail = async () => {
-    if (selected.size === 0) return alert("בחר תעודות לשליחה");
-    await sendToEmail(Array.from(selected));
-    alert("נשלח בהצלחה ל-Office 365");
-    setSelected(new Set());
-  };
+  const openEditor = (id: string) => {
+    setSelectedDoc(id)
+    setView('editor')
+  }
 
   return (
-    <div className="min-h-screen bg-[#0A0A0A] text-[#E0E0E0] p-6 font-sans dir-rtl" dir="rtl">
-      {/* Top Bar */}
-      <header className="flex justify-between items-center mb-8 border-b border-[#222] pb-4">
+    <div className="min-h-screen bg-[#F3F2F1] flex flex-col font-sans text-[#323130]" dir="rtl">
+      
+      {/* --- TOPBAR (Microsoft 365 Header) --- */}
+      <header className="h-12 bg-[#0078D4] flex items-center justify-between px-4 text-white shadow-md z-50">
         <div className="flex items-center gap-4">
-          <div className="w-10 h-10 bg-[#C9A227] rounded flex items-center justify-center font-bold text-black shadow-[0_0_15px_rgba(201,162,39,0.3)]">
-            ח.ס
+          <div className="p-1 hover:bg-[#106EBE] rounded cursor-pointer">
+            <LayoutDashboard size={20} />
           </div>
-          <h1 className="text-xl font-semibold tracking-tight">ניהול לוגיסטי - גליה</h1>
+          <span className="font-semibold tracking-wide">Saban Studio | Portal</span>
         </div>
-        <div className="flex gap-3">
-          <button onClick={handleSendMail} className="btn-secondary"><Mail size={18}/> שלח למייל 365</button>
-          <button className="btn-primary" onClick={() => { setUploadType('invoice'); fileInputRef.current?.click(); }}>
-            <FileUp size={18}/> העלאת תעודה
-          </button>
-          <button className="btn-gold" onClick={() => { setUploadType('tachograph'); fileInputRef.current?.click(); }}>
-            <Printer size={18}/> סריקת דיסקית
-          </button>
+        
+        <div className="flex items-center gap-3">
+          <div className="relative hidden md:block">
+            <Search className="absolute right-2 top-1.5 text-gray-400" size={16} />
+            <input 
+              type="text" 
+              placeholder="חיפוש מהיר..." 
+              className="bg-[#106EBE] text-white placeholder-blue-200 text-sm rounded py-1 pr-8 pl-2 outline-none border-none w-64 focus:bg-white focus:text-black focus:placeholder-gray-400 transition-all"
+            />
+          </div>
+          <Bell size={20} className="cursor-pointer hover:text-blue-200" />
+          <UserCircle size={24} className="cursor-pointer hover:text-blue-200" />
         </div>
       </header>
 
-      {/* Search & Stats */}
-      <div className="flex justify-between items-center mb-6">
-        <div className="relative w-96">
-          <Search className="absolute right-3 top-2.5 text-gray-500" size={18} />
-          <input type="text" placeholder="חיפוש מהיר ברשימה..." className="search-input" />
-        </div>
-        <div className="text-sm text-gray-500">נבחרו {selected.size} פריטים</div>
+      <div className="flex flex-1 overflow-hidden">
+        
+        {/* --- SIDEBAR (Fluent UI Style) --- */}
+        <aside className="w-16 md:w-56 bg-white border-l border-[#E2E8F0] flex flex-col p-2 gap-1 shadow-sm">
+          <button 
+            onClick={() => setView('list')}
+            className={`flex items-center gap-3 p-3 rounded-md transition-colors ${view === 'list' ? 'bg-[#EDEBE9] text-[#0078D4] font-bold' : 'hover:bg-[#F3F2F1]'}`}
+          >
+            <FileText size={20} />
+            <span className="hidden md:block text-sm">ארכיון תעודות</span>
+          </button>
+          <button className="flex items-center gap-3 p-3 rounded-md hover:bg-[#F3F2F1] text-gray-600 transition-colors">
+            <UploadCloud size={20} />
+            <span className="hidden md:block text-sm">העלאה מהירה</span>
+          </button>
+          <div className="mt-auto border-t pt-2">
+            <button className="flex items-center gap-3 p-3 rounded-md hover:bg-[#F3F2F1] text-gray-600 transition-colors w-full">
+              <Settings size={20} />
+              <span className="hidden md:block text-sm">הגדרות</span>
+            </button>
+          </div>
+        </aside>
+
+        {/* --- MAIN CONTENT --- */}
+        <main className="flex-1 overflow-auto flex flex-col">
+          
+          {view === 'list' ? (
+            <div className="p-8">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-[#323130]">ניהול מסמכים</h2>
+                <button className="bg-[#0078D4] text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-[#106EBE] shadow-sm">
+                  + העלאת קובץ חדש
+                </button>
+              </div>
+
+              {/* טבלת ארכיון מקצועית */}
+              <div className="bg-white border border-[#E2E8F0] rounded-lg shadow-sm overflow-hidden">
+                <table className="w-full text-right border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-[#FAF9F8] border-b border-[#E2E8F0] text-gray-500 font-medium">
+                      <th className="p-4">מזהה תעודה</th>
+                      <th className="p-4">לקוח</th>
+                      <th className="p-4">תאריך סריקה</th>
+                      <th className="p-4">סטטוס</th>
+                      <th className="p-4 text-center">פעולות</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {documents.map((doc) => (
+                      <tr key={doc.id} className="border-b border-gray-100 hover:bg-[#F8FAFC] transition-colors">
+                        <td className="p-4 font-mono font-bold text-[#0078D4]">{doc.id}</td>
+                        <td className="p-4">{doc.customer}</td>
+                        <td className="p-4 text-gray-500">{doc.date}</td>
+                        <td className="p-4">
+                          <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs font-semibold">
+                            {doc.status}
+                          </span>
+                        </td>
+                        <td className="p-4 text-center">
+                          <button 
+                            onClick={() => openEditor(doc.id)}
+                            className="text-[#0078D4] hover:underline font-medium"
+                          >
+                            פתח בסטודיו
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            /* תצוגת הסטודיו (Canvas) */
+            <div className="flex flex-col h-full bg-white">
+              <div className="bg-[#FAF9F8] border-b border-[#E2E8F0] p-2 flex items-center justify-between">
+                <button 
+                  onClick={() => setView('list')}
+                  className="text-sm text-[#0078D4] font-medium hover:underline flex items-center gap-1"
+                >
+                  חזרה לארכיון {'>'}
+                </button>
+                <div className="text-sm font-semibold">עורך: {selectedDoc}</div>
+                <div />
+              </div>
+              
+              <div className="flex-1 overflow-hidden relative">
+                {/* כאן נכנס רכיב ה-CanvasStudio שהכנו */}
+                <CanvasStudio 
+                  backgroundSrc="/docs/sample-invoice.png" // כאן תבוא הכתובת האמיתית מה-DB
+                />
+              </div>
+            </div>
+          )}
+        </main>
       </div>
 
-      {/* Main Table */}
-      <div className="bg-[#111] rounded-lg border border-[#222] overflow-hidden">
-        <table className="w-full text-right border-collapse">
-          <thead>
-            <tr className="bg-[#181818] text-gray-400 text-xs uppercase border-b border-[#222]">
-              <th className="p-4 w-10"><CheckSquare size={16}/></th>
-              <th className="p-4">סוג</th>
-              <th className="p-4">מספר/נהג</th>
-              <th className="p-4">לקוח/פרטים</th>
-              <th className="p-4">כתובת/תאריך</th>
-              <th className="p-4 text-center">לינק</th>
-            </tr>
-          </thead>
-          <tbody>
-            {records.map((r) => (
-              <tr key={r.id} className={`border-b border-[#1a1a1a] hover:bg-[#161616] transition-colors ${selected.has(r.id) ? 'bg-[#1a1600]' : ''}`}>
-                <td className="p-4 text-center">
-                  <input type="checkbox" checked={selected.has(r.id)} onChange={() => toggleSelect(r.id)} className="accent-[#C9A227]" />
-                </td>
-                <td className="p-4">
-                  <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${r.docType === 'tachograph' ? 'bg-blue-900/30 text-blue-400' : 'bg-green-900/30 text-green-400'}`}>
-                    {r.docType === 'tachograph' ? 'דיסקית' : 'תעודה'}
-                  </span>
-                </td>
-                <td className="p-4 font-mono text-[#C9A227]">{r.invoiceNumber || r.driverName}</td>
-                <td className="p-4">{r.customerName || `ק"מ: ${r.startKm}-${r.endKm}`}</td>
-                <td className="p-4 text-gray-400 text-sm">{r.address || r.date}</td>
-                <td className="p-4 text-center">
-                  <button className="text-gray-500 hover:text-white"><ExternalLink size={16}/></button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {loading && <div className="p-10 text-center"><Loader2 className="animate-spin inline text-[#C9A227]"/></div>}
-        {!loading && records.length === 0 && <div className="p-20 text-center text-gray-600 italic">ממתין לסריקה...</div>}
-      </div>
-
-      <input type="file" ref={fileInputRef} onChange={onFileSelect} className="hidden" />
-
-      <style jsx>{`
-        .btn-primary { background: #333; color: white; padding: 8px 16px; border-radius: 6px; display: flex; align-items: center; gap: 8px; font-weight: 500; font-size: 0.9rem; border: 1px solid #444; }
-        .btn-secondary { background: transparent; color: #888; padding: 8px 16px; border-radius: 6px; display: flex; align-items: center; gap: 8px; font-size: 0.9rem; border: 1px solid #222; }
-        .btn-gold { background: #C9A227; color: black; padding: 8px 16px; border-radius: 6px; display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 0.9rem; }
-        .search-input { background: #111; border: 1px solid #222; padding: 8px 40px 8px 15px; border-radius: 8px; width: 100%; color: white; outline: none; }
-        .search-input:focus { border-color: #C9A227; }
+      <style jsx global>{`
+        body {
+          background-color: #F3F2F1;
+        }
+        /* התאמה אישית לפונט Segoe UI למראה מייקרוסופט */
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Hebrew:wght@300;400;700&display=swap');
+        * {
+          font-family: 'Segoe UI', 'Noto Sans Hebrew', Tahoma, Geneva, Verdana, sans-serif;
+        }
       `}</style>
     </div>
-  );
+  )
 }
