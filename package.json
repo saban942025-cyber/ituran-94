@@ -2,6 +2,9 @@
   "name": "ituran-94",
   "version": "1.0.0",
   "private": true,
+  "engines": {
+    "node": "18.x"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -10,28 +13,27 @@
   },
   "dependencies": {
     "next": "14.1.0",
-    "react": "^18",
-    "fabric": "^5.3.0",
-    "jspdf": "^2.5.1",
-    "react-dom": "^18",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
     "firebase": "^10.8.0",
     "leaflet": "^1.9.4",
     "react-leaflet": "^4.2.1",
     "lucide-react": "^0.330.0",
+    "fabric": "^5.3.0",
+    "jspdf": "^2.5.1",
+    "undici": "5.28.2",
     "@google/generative-ai": "^0.21.0",
     "react-webcam": "^7.2.0"
   },
   "devDependencies": {
-    "typescript": "^5",
-    "@types/node": "^20",
-    "engines": {
-    "node": "18.x"
-  },
-    "@types/react": "^18",
-    "@types/react-dom": "^18",
+    "typescript": "^5.3.3",
+    "@types/node": "^20.11.16",
+    "@types/react": "^18.2.52",
+    "@types/react-dom": "^18.2.18",
+    "@types/fabric": "^5.3.6",
     "@types/leaflet": "^1.9.12",
-    "autoprefixer": "^10.0.1",
-    "postcss": "^8",
-    "tailwindcss": "^3.3.0"
+    "autoprefixer": "^10.4.17",
+    "postcss": "^8.4.35",
+    "tailwindcss": "^3.4.1"
   }
 }
