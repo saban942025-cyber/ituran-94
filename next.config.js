@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true,
-  swcMinify: true,
-}
-module.exports = nextConfig
+  webpack: (config) => {
+    config.externals.push({ canvas: 'commonjs canvas' });
+    return config;
+  },
+};
+
+module.exports = nextConfig;
