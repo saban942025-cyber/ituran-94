@@ -4,6 +4,8 @@
 export const dynamic = 'force-dynamic';
 
 import React, { useState, useRef } from 'react';
+
+import React, { useState, useRef } from 'react';
 import Webcam from 'react-webcam';
 import { db } from "../../../lib/firebase";
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
