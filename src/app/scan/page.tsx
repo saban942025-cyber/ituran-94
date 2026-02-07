@@ -1,7 +1,7 @@
 'use client';
 import React, { useRef, useState, useEffect } from 'react';
 import Webcam from 'react-webcam';
-import { db, storage } from '../../../lib/firebase'
+import { db } from "../../../lib/firebase";
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { Camera, CheckCircle, AlertCircle, Maximize } from 'lucide-react';
 
