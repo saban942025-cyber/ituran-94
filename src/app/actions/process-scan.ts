@@ -1,6 +1,6 @@
 'use server';
 
-import { db } from "@/lib/firebase"; 
+import { db, storage } from '../../../lib/firebase'; 
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
 export async function processScan(base64Image: string, type: 'invoice' | 'tachograph') {
