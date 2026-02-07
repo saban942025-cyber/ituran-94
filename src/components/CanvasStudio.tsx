@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useRef, useState } from 'react';
-import * as fabric from 'fabric'; 
+import { fabric } from 'fabric'; 
 import jsPDF from 'jspdf';
 import { MousePointer2, PenTool, Stamp, Type, Printer, Loader2 } from 'lucide-react';
 
