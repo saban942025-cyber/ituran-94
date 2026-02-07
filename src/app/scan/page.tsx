@@ -1,6 +1,6 @@
 'use client'
 
-// מונע רינדור סטטי ב-Vercel
+// הגדרה קריטית למניעת רינדור סטטי ב-Vercel
 export const dynamic = 'force-dynamic';
 
 import React, { useState, useRef, useCallback } from 'react';
@@ -37,19 +37,19 @@ export default function SmartScanner() {
     
     try {
       /**
-       * Lazy Loading: אנחנו מייבאים את פונקציות ה-Storage רק כאן.
-       * זה מבטיח ש-Vercel לא ינסה להריץ אותן בזמן ה-Build בשרת.
+       * נשק יום הדין: אנחנו טוענים את ה-Storage רק כאן בפנים.
+       * Vercel לא רואה את זה בזמן ה-Build, ולכן הוא לא יקרוס.
        */
       const { getStorage, ref, uploadString, getDownloadURL } = await import('firebase/storage');
       
       const storage = getStorage();
-      const storageRef = ref(storage, `scans/scan_${Date.now()}.jpg`);
+      const storageRef = ref(storage, `scans/img_${Date.now()}.jpg`);
       
-      // העלאת התמונה כ-Data URL
+      // העלאת התמונה
       await uploadString(storageRef, imgSrc, 'data_url');
       const downloadURL = await getDownloadURL(storageRef);
 
-      // שמירת הנתונים ב-Firestore
+      // שמירה ב-Firestore (זה בסדר להשאיר בחוץ כי זה לא קורס ב-Build)
       const docRef = await addDoc(collection(db, "scans"), {
         imageUrl: downloadURL,
         timestamp: serverTimestamp(),
@@ -57,19 +57,19 @@ export default function SmartScanner() {
       });
       
       setScannedData({ success: true, id: docRef.id });
-      alert("הסריקה נשמרה בהצלחה!");
+      alert("הסריקה נשלחה בהצלחה!");
     } catch (e) {
-      console.error("Error processing image: ", e);
-      alert("שגיאה בתקשורת עם השרת. אנא נסה שוב.");
+      console.error("Build safe error: ", e);
+      alert("שגיאה בחיבור לשרת. נסה שוב.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex flex-col items-center min-h-screen bg-[#F3F2F1] p-4 text-[#323130] font-sans">
+    <div className="flex flex-col items-center min-h-screen bg-[#F3F2F1] p-4 text-[#323130]">
       <div className="w-full max-w-md bg-white rounded-lg shadow-2xl overflow-hidden border border-[#EDEBE9]">
-        <div className="p-4 border-b border-[#EDEBE9] bg-white flex justify-between items-center">
+        <div className="p-4 border-b border-[#EDEBE9] bg-white flex justify-between items-center shadow-sm">
           <h1 className="text-lg font-bold flex items-center gap-2 text-[#0078D4]">
             <Camera size={22} />
             סורק חכם - סבן לוגיסטיקה
@@ -89,11 +89,9 @@ export default function SmartScanner() {
             <img src={imgSrc} alt="Captured" className="w-full h-full object-cover" />
           )}
 
-          {/* מסגרת סריקה חכמה */}
-          <div className="absolute inset-0 border-[20px] border-black/40 pointer-events-none">
-             <div className="w-full h-full border-2 border-dashed border-white/50 rounded-lg flex items-center justify-center">
-                {!imgSrc && <div className="bg-black/50 text-white text-[10px] px-3 py-1 rounded-full">מקם תעודה כאן</div>}
-             </div>
+          {/* מסגרת עיצובית לסריקה */}
+          <div className="absolute inset-0 border-[2px] border-dashed border-white/40 m-10 rounded-xl pointer-events-none flex items-center justify-center">
+             {!imgSrc && <div className="bg-black/40 text-white text-[10px] px-2 py-1 rounded">הצב תעודה כאן</div>}
           </div>
 
           {loading && (
@@ -104,11 +102,11 @@ export default function SmartScanner() {
           )}
         </div>
 
-        <div className="p-6 bg-white flex justify-center gap-4">
+        <div className="p-6 bg-white flex justify-center gap-4 border-t border-[#EDEBE9]">
           {!imgSrc ? (
             <button
               onClick={capture}
-              className="bg-[#0078D4] hover:bg-[#106EBE] text-white w-20 h-20 rounded-full flex items-center justify-center shadow-xl transition-all active:scale-90 border-4 border-[#F3F2F1]"
+              className="bg-[#0078D4] hover:bg-[#106EBE] text-white w-20 h-20 rounded-full flex items-center justify-center shadow-2xl transition-all active:scale-95 border-4 border-[#F3F2F1]"
             >
               <Camera size={36} />
             </button>
@@ -116,14 +114,14 @@ export default function SmartScanner() {
             <div className="flex gap-4 w-full">
               <button
                 onClick={() => setImgSrc(null)}
-                className="flex-1 py-4 px-4 border-2 border-[#EDEBE9] rounded-xl flex items-center justify-center gap-2 hover:bg-[#F3F2F1] font-bold text-[#605E5C]"
+                className="flex-1 py-4 px-4 border-2 border-[#EDEBE9] rounded-xl flex items-center justify-center gap-2 hover:bg-[#F3F2F1] font-bold text-[#605E5C] transition-colors"
               >
                 <RefreshCw size={20} />
-                צילום מחדש
+                חדש
               </button>
               <button
                 onClick={processImage}
-                className="flex-1 py-4 px-4 bg-[#107C10] hover:bg-[#0B5A0B] text-white rounded-xl flex items-center justify-center gap-2 shadow-lg font-bold transition-all"
+                className="flex-1 py-4 px-4 bg-[#107C10] hover:bg-[#0B5A0B] text-white rounded-xl flex items-center justify-center gap-2 shadow-lg font-bold transition-all active:scale-95"
               >
                 <Check size={20} />
                 אשר ושלח
@@ -133,9 +131,9 @@ export default function SmartScanner() {
         </div>
       </div>
       
-      <div className="mt-6 flex items-center gap-2 text-[#605E5C]">
+      <div className="mt-6 flex items-center gap-2 text-[#605E5C] opacity-70">
          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-         <span className="text-[11px] font-medium tracking-wide">Saban Intelligent Systems Connected</span>
+         <span className="text-[10px] uppercase tracking-widest font-bold">Saban Logistics AI Active</span>
       </div>
     </div>
   );
