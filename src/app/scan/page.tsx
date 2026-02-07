@@ -4,6 +4,11 @@
 export const dynamic = 'force-dynamic';
 
 import React, { useState, useRef } from 'react';
+import Webcam from 'react-webcam';
+import { db } from "../../../lib/firebase";
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { Camera, RefreshCw, Check, X, Loader2 } from 'lucide-react';
+// ... שאר הקוד
 
 import React, { useState, useRef } from 'react';
 import Webcam from 'react-webcam';
