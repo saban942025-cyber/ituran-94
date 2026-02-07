@@ -1,18 +1,20 @@
-// src/components/SabanEditor.tsx
-'use client';
-import { useEffect, useRef } from 'react';
-import { fabric } from 'fabric'; // ספריית הקנבס המתקדמת
+'use client'
+import React, { useEffect, useRef, useState } from 'react';
+import { fabric } from 'fabric';
 
+// הוספת סוג למשתנה fileUrl והגדרת ה-Refs בצורה נכונה ל-TypeScript
 export default function SabanEditor({ fileUrl }: { fileUrl: string }) {
-  const canvasRef = useRef(null);
-  const fabricRef = useRef(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fabricRef = useRef<fabric.Canvas | null>(null);
 
   useEffect(() => {
+    if (!canvasRef.current) return;
+
     // אתחול הקנבס
     fabricRef.current = new fabric.Canvas(canvasRef.current, {
       width: 800,
       height: 1100,
-      backgroundColor: '#fff'
+      backgroundColor: '#fff',
     });
   }, []);
 
