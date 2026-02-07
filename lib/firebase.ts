@@ -15,7 +15,8 @@ const firebaseConfig = {
 
 // אתחול Singleton
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-
+const db = getFirestore(app);
+const storage = getStorage(app);
 // ייצוא השירותים
 const db = getFirestore(app); // Firestore הרגיל
 const database = getDatabase(app); // ה-Realtime שדף הדיווחים צריך
