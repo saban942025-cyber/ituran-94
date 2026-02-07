@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import CanvasStudio from '../components/CanvasStudio'; //נתיב יחסי בטוח
+import CanvasStudio from '@/components/CanvasStudio'; //נתיב יחסי בטוח
 import { 
   LayoutDashboard, 
   FileText, 
