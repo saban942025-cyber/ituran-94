@@ -1,8 +1,8 @@
 'use client'
 
 import React, { useState } from 'react'
-import CanvasStudio from '@/components/CanvasStudio'
-import { 
+import CanvasStudio from '../../components/CanvasStudio'
+  import { 
   LayoutDashboard, 
   FileText, 
   UploadCloud, 
