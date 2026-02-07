@@ -1,6 +1,6 @@
 'use server';
 
-import { db } from "@/lib/firebase";
+import { db } from "../../../lib/firebase";
 import { collection, query, where, getDocs, updateDoc, doc } from "firebase/firestore";
 
 export async function matchIturanData(ituranCsvData: string) {
