@@ -3,74 +3,106 @@
 @tailwind utilities;
 
 :root {
-  --foreground-rgb: 255, 255, 255;
-  --background-start-rgb: 11, 20, 26;
-  --background-end-rgb: 11, 20, 26;
-  --saban-gold: 201, 162, 39; /* הזהב המזוהה עם ח. סבן */
+  /* צבעי Microsoft 365 נקיים */
+  --foreground-rgb: 50, 49, 48;       /* אפור כהה מאוד (טקסט אופיס) */
+  --background-start-rgb: 255, 255, 255; /* לבן נקי */
+  --background-end-rgb: 243, 242, 241;   /* אפור בהיר מאוד (רקע עבודה) */
+  
+  /* צבעי מותג */
+  --office-blue: 0, 120, 212;      /* הכחול של Microsoft 365 */
+  --saban-gold: 201, 162, 39;      /* נשמור את הזהב לנגיעות יוקרה */
+  --error-red: 211, 47, 47;        /* אדום לחריגות בכמויות */
 }
 
 body {
   color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
-  font-family: system-ui, -apple-system, sans-serif;
+  background: rgb(var(--background-end-rgb));
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
   margin: 0;
   padding: 0;
   overflow-x: hidden;
 }
 
-/* עיצוב למסגרת הסריקה החכמה של חכמת */
-.scanner-overlay {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 80%;
-  height: 60%;
-  border: 2px solid rgba(var(--saban-gold), 0.5);
-  border-radius: 20px;
-  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
-  pointer-events: none;
+/* --- Microsoft 365 UI Components --- */
+
+/* כפתור אופיס כחול */
+.btn-office-primary {
+  background-color: rgb(var(--office-blue));
+  color: white;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  transition: background-color 0.2s;
+  border: none;
+  cursor: pointer;
 }
 
-.scanner-overlay::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
+.btn-office-primary:hover {
+  background-color: rgb(16, 110, 190);
+}
+
+/* כפתור לבן/אפור לכלים */
+.btn-tool {
+  background-color: white;
+  border: 1px solid #E2E8F0;
+  padding: 8px;
+  border-radius: 4px;
+  color: #323130;
+  transition: all 0.2s;
+}
+
+.btn-tool:hover {
+  background-color: #F3F2F1;
+  border-color: rgb(var(--office-blue));
+}
+
+/* טבלת נתונים חכמה */
+.data-table {
   width: 100%;
-  height: 2px;
-  background: rgb(var(--saban-gold));
-  box-shadow: 0 0 15px rgb(var(--saban-gold));
-  animation: scan 2s ease-in-out infinite;
+  border-collapse: collapse;
+  background: white;
+  font-size: 13px;
 }
 
-@keyframes scan {
-  0%, 100% { top: 0%; }
-  50% { top: 100%; }
+.data-table th {
+  background: #FAF9F8;
+  border-bottom: 1px solid #EDEBE9;
+  padding: 10px;
+  text-align: right;
+  color: #605E5C;
 }
 
-/* עיצוב כפתורים בסגנון סבן */
-.btn-saban {
-  background-color: rgb(var(--saban-gold));
-  color: black;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  transition: all 0.2s ease;
+.data-table td {
+  padding: 10px;
+  border-bottom: 1px solid #F3F2F1;
 }
 
-.btn-saban:active {
-  transform: scale(0.95);
-  filter: brightness(0.9);
+/* שורת חריגה (הוזמן מול סופק) */
+.row-anomaly {
+  background-color: #FFF4F4; /* אדום בהיר מאוד */
+  color: rgb(var(--error-red));
 }
 
-/* התאמה למובייל - גובה מלא */
+/* מסגרת הסטודיו (הקנבס) */
+.studio-frame {
+  background: white;
+  box-shadow: 0 0 20px rgba(0,0,0,0.1);
+  border: 1px solid #EDEBE9;
+}
+
+/* סרגל כלים (Ribbon) */
+.office-ribbon {
+  height: 48px;
+  background: white;
+  border-bottom: 1px solid #EDEBE9;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 8px;
+}
+
+/* התאמה למובייל */
 .h-screen-safe {
-  height: 100vh; /* Fallback */
   height: 100dvh;
 }
