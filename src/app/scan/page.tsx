@@ -1,5 +1,9 @@
-'use client';
-import React, { useRef, useState, useEffect } from 'react';
+'use client'
+
+// השורה שפותרת את השגיאה ב-Vercel
+export const dynamic = 'force-dynamic';
+
+import React, { useState, useRef } from 'react';
 import Webcam from 'react-webcam';
 import { db } from "../../../lib/firebase";
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
