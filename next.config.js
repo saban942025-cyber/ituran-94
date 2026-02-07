@@ -1,11 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // פותר את בעיית ה-Private Fields בגרסאות Node ישנות/ספריות מודרניות
+  // זה התיקון הקריטי לשגיאת ה-Unexpected token (private fields #)
   experimental: {
-    serverComponentsExternalPackages: ['undici'],
+    serverComponentsExternalPackages: ['undici', '@firebase/storage'],
   },
   webpack: (config) => {
-    // מונע מ-Webpack לנסות לקמפל ספריות צד-שרת של Fabric בתוך Vercel
+    // פותר את בעיית ה-Fabric.js ב-Vercel
     config.externals.push({ canvas: 'commonjs canvas' });
     return config;
   },
