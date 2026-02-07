@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { fabric } from 'fabric'; // ספריית הקנבס המתקדמת
 
-export default function SabanEditor({ fileUrl }) {
+export default function SabanEditor({ fileUrl }: { fileUrl: string }) {
   const canvasRef = useRef(null);
   const fabricRef = useRef(null);
 
