@@ -1,4 +1,4 @@
-// src/app/scan/page.tsx
+"use client";
 export const dynamic = 'force-dynamic';
 
 import React, { useState, useRef, useCallback } from 'react';
