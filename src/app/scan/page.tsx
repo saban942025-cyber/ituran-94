@@ -1,6 +1,4 @@
-'use client'
-
-// הגדרה קריטית למניעת רינדור סטטי ב-Vercel
+// src/app/scan/page.tsx
 export const dynamic = 'force-dynamic';
 
 import React, { useState, useRef, useCallback } from 'react';
